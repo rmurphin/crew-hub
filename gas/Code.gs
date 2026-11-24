@@ -97,13 +97,24 @@ function save_(b) {
       if (i >= 0) vals[i] = !!job && crew.indexOf(c.name) >= 0;
     });
     if (col('crew') >= 0) vals[col('crew')] = job ? crew.join(', ') : '';
-    if (act === 'add') { row = sh.getLastRow() + 1; }
+    if (act === 'add') row = firstEmpty_(sh);
     var range = sh.getRange(row, 1, 1, head.length);
     range.setValues([vals]);
     if (col('date') >= 0) sh.getRange(row, col('date') + 1).setNote((act === 'add' ? 'Added' : 'Changed') + ' in the app by ' + who + ', ' + stamp);
     sortSchedule();
     return { ok: true };
   } finally { lock.releaseLock(); }
+}
+
+/* First Schedule row with no date, job or notes. The checkbox columns run to the bottom of the tab,
+   so getLastRow() counts them as filled; this looks past them. */
+function firstEmpty_(sh) {
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var cols = ['date', 'job', 'notes'].map(function (h) { return head.indexOf(h); }).filter(function (i) { return i >= 0; });
+  var v = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), head.length).getValues();
+  for (var i = 1; i < v.length; i++) if (cols.every(function (c) { return v[i][c] === '' || v[i][c] === null; })) return i + 1;
+  if (v.length >= sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 50);
+  return v.length + 1;
 }
 
 /* "07:30" -> "7:30 AM", matching the Start dropdown */
@@ -167,7 +178,9 @@ function copyDayForward() {
   var already = v.slice(1).some(function (r) { return key(r[di]) === key(to); });
   var label = Utilities.formatDate(to, ss.getSpreadsheetTimeZone(), 'EEE M/d');
   if (already && ui.alert(label + ' already has rows. Add these as well?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
-  sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  var at = firstEmpty_(sh);
+  if (at + rows.length - 1 > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), at + rows.length - 1 - sh.getMaxRows());
+  sh.getRange(at, 1, rows.length, rows[0].length).setValues(rows);
   sortSchedule();
   ss.toast('Copied ' + rows.length + (rows.length === 1 ? ' job' : ' jobs') + ' to ' + label + '. Notes were left blank.', 'Crew Hub', 6);
 }
