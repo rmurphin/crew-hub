@@ -80,7 +80,7 @@
     } catch {
       S.offline = !0;
     }
-    render(), fresh.length ? toast("Schedule updated: " + (fresh.length > 3 ? fresh.length + " days changed" : fresh.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", "))) : manual && toast(S.offline ? "No signal. Showing the last schedule." : "Schedule is up to date.");
+    render(), loadWeather(), fresh.length ? toast("Schedule updated: " + (fresh.length > 3 ? fresh.length + " days changed" : fresh.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", "))) : manual && toast(S.offline ? "No signal. Showing the last schedule." : "Schedule is up to date.");
   }
   var usd = (n) => "$" + Number(n).toFixed(2), DOLLAR = I('<path d="M12 3v18M16.5 7.5c-.8-1.3-2.4-2-4.5-2-2.6 0-4.2 1.3-4.2 3.1 0 4.5 9 2.3 9 6.8 0 1.9-1.8 3.2-4.6 3.2-2.3 0-4-.8-4.9-2.3"/>', 18), pwStrip = (j) => j?.pw ? `<div class="pw">${DOLLAR}<span class="pwk">Prevailing wage</span><b>${usd(j.pw.rate)}<small>/hr</small></b></div>` : "", pwPill = (j) => j?.pw ? '<span class="pill pwp">PW</span>' : "", crewChips = (names, skipMe) => names.filter((n) => !(skipMe && n === S.me)).map((n) => `<span class="chip${n === S.me ? " me" : ""}">${esc(first(n))}</span>`).join(""), updated = () => {
     if (!S.data?.updated) return "";
@@ -96,6 +96,7 @@
     <div class="jn">${esc(j.name)}</div>
     <div class="meta">${esc(j.gc ? "GC: " + j.gc : "")}</div>
     ${j.address ? `<div class="addr">${PIN}<span>${esc(j.address)}</span></div>` : ""}
+    ${wxLine(j, r.date)}
     ${pwStrip(j)}
     ${small ? "" : `<div class="btns">${j.address ? `<a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a>` : "<span></span>"}<button class="btn" data-job="${j.id}">${INFO}Job info</button></div>`}
     ${others.length ? `<div class="with">With ${crewChips(others)}</div>` : ""}
@@ -125,7 +126,7 @@
   }
   function daySection(d, rows) {
     return `<section class="day${d === today() ? " now" : ""}${S.changed.has(d) ? " chg" : ""}" data-date="${d}"><div class="dh">${fmtDay(d, { weekday: "long" })}<span>${fmtDay(d, { month: "short", day: "numeric" })}</span>${S.changed.has(d) ? '<strong class="ctag">Updated</strong>' : ""}${d === today() ? "<em>Today</em>" : ""}</div>
-      ${rows.length ? rows.map((r) => r.job ? `<button class="as" data-job="${r.job}"><span class="t">${time12(r.start).replace(" ", "\xA0")}</span><span class="n">${S.tab === "cal" ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ""}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}</span>${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ""}</button>` : `<div class="dn">${esc(r.notes || "No work")}</div>`).join("") : `<div class="dn">${S.mine ? "Not scheduled" : "No work scheduled"}</div>`}</section>`;
+      ${rows.length ? rows.map((r) => r.job ? `<button class="as${canEdit() ? " ed" : ""}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(" ", "\xA0")}</span><span class="n">${S.tab === "cal" ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ""}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ""}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ""}</button>` : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || "No work")}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || "No work")}</div>`).join("") : `<div class="dn">${S.mine ? "Not scheduled" : "No work scheduled"}</div>`}</section>`;
   }
   var PALETTE = ["#5e9474", "#5f86b0", "#c49a4a", "#b86b52", "#8a78b8", "#4f9592", "#b06a8a", "#86935a", "#7b8794"], jobColor = (id) => {
     let ids = [...new Set((S.data?.schedule || []).filter((r) => r.job).map((r) => r.job))].sort();
@@ -178,6 +179,10 @@
     <div class="card">${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
       ${pwStrip(j)}
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ""}</div>
+    ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => {
+      let d = addDays(today(), n), w = wxFor(j, d);
+      return w ? `<div class="wd"><b>${n ? fmtDay(d, { weekday: "short" }) : "Today"}</b>${wxIcon(w.code, 24)}<span>${w.hi}\xB0 <i>${w.lo}\xB0</i></span><small>${w.pop}%</small></div>` : "";
+    }).join("")}</div>` : ""}
     <div class="sec">Scope &amp; products</div><div class="card">${groups.length ? groups.map(spec).join("") : `<div class="empty">Scope hasn't been entered yet. Check with Riley before starting.</div>`}</div>
     <div class="sec">Site &amp; contacts</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[["Contact", site.contact], ["Phone", site.phone], ["Email", site.email], ["Access", site.access]].filter((x) => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join("")}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map((r) => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: "short", month: "short", day: "numeric" })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join("")}</div>` : ""}
@@ -191,6 +196,91 @@
     ${installed() ? "" : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? "<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>" : "<li>In Chrome, tap the \u22EE menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>"}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? " \xB7 schedule " + new Date(S.data.updated).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""}</p></div></div>`;
+  }
+  var WX_ICONS = {
+    sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+    part: '<path d="M8 5.5V4M3.8 9.7H2.5M4.9 6.6l-.9-.9M11.6 6.6l.9-.9"/><path d="M5.6 11.3a3.4 3.4 0 0 1 6-2.6"/><path d="M8 19h9.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 8 19z"/>',
+    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 18.5z"/>',
+    rain: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 14.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>',
+    snow: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 14.5z"/><path d="M8.5 18.5h.01M12 20h.01M15.5 18.5h.01"/>',
+    fog: '<path d="M4 9h16M6 13h12M4 17h16"/>'
+  }, wxKind = (c) => c <= 1 ? "sun" : c <= 2 ? "part" : c === 3 ? "cloud" : c <= 48 ? "fog" : c >= 71 && c <= 77 || c === 85 || c === 86 ? "snow" : "rain", wxIcon = (c, s = 18) => I(WX_ICONS[wxKind(c)], s), WX = { data: store.get("wx") || {}, at: store.get("wxAt") || 0 }, geoKey = (j) => j?.geo ? j.geo.map((n) => (+n).toFixed(2)).join(",") : "", wxFor = (j, d) => WX.data[geoKey(j)]?.[d] || null, wxLine = (j, d) => {
+    let w = wxFor(j, d);
+    return w ? `<div class="wx">${wxIcon(w.code)}<b>${w.hi}\xB0</b><span>/ ${w.lo}\xB0</span><span class="wxp">${I('<path d="M12 3.5s-5.5 6-5.5 10a5.5 5.5 0 0 0 11 0c0-4-5.5-10-5.5-10z"/>', 13)}${w.pop}%</span></div>` : "";
+  }, wxMini = (j, d) => {
+    let w = wxFor(j, d);
+    return w ? `<span class="wxs">${wxIcon(w.code, 15)}${w.hi}\xB0${w.pop >= 20 ? ` \xB7 ${w.pop}%` : ""}</span>` : "";
+  };
+  async function loadWeather(force) {
+    let jobs = (S.data?.jobs || []).filter((j) => j.geo), keys = [...new Set(jobs.map(geoKey))];
+    if (!(!keys.length || !force && Date.now() - WX.at < 36e5 && keys.every((k) => WX.data[k])))
+      try {
+        let list;
+        {
+          let [lat, lng] = [keys.map((k) => k.split(",")[0]).join(","), keys.map((k) => k.split(",")[1]).join(",")], r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=America%2FLos_Angeles&forecast_days=10`);
+          if (!r.ok) throw new Error("wx");
+          let j = await r.json();
+          list = Array.isArray(j) ? j : [j];
+        }
+        keys.forEach((k, i) => {
+          let d = list[i]?.daily;
+          d && (WX.data[k] = Object.fromEntries(d.time.map((t, n) => [t, { code: d.weather_code[n], hi: Math.round(d.temperature_2m_max[n]), lo: Math.round(d.temperature_2m_min[n]), pop: d.precipitation_probability_max[n] ?? 0 }])));
+        }), WX.at = Date.now(), store.set("wx", WX.data), store.set("wxAt", WX.at), render();
+      } catch {
+      }
+  }
+  var TIMES = ["5:00", "5:30", "6:00", "6:30", "7:00", "7:30", "8:00", "8:30", "9:00", "10:00", "11:00", "12:00", "13:00"].map((t) => (t.length < 5 ? "0" : "") + t), canEdit = () => !!S.data?.canEdit, PENCIL = I('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 16), PLUS = I('<path d="M12 5v14M5 12h14"/>', 22);
+  function editor(src) {
+    let e = S.ed = {
+      row: src.row || null,
+      from: src.from || src.date,
+      thru: src.thru || "",
+      job: src.job || "",
+      start: src.start || "07:00",
+      crew: [...src.crew || []],
+      notes: src.notes || "",
+      off: !!src.row && !src.job,
+      expect: src.row ? { date: src.from || src.date, job: src.job || "" } : null,
+      del: !1,
+      busy: !1,
+      err: ""
+    };
+    e.multi = !!e.thru, drawEditor();
+  }
+  function drawEditor() {
+    let e = S.ed, jobs = S.data?.jobs || [], crew = S.data?.crew || [], opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(l)}</option>`;
+    $("#sheet").innerHTML = `<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
+    <div class="sh"><h2 id="edH">${e.row ? "Edit schedule" : "Add to schedule"}</h2><button class="done" data-act="edclose">Cancel</button></div>
+    ${e.row && e.thru ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: "short", month: "short", day: "numeric" })} to ${fmtDay(e.thru, { weekday: "short", month: "short", day: "numeric" })}. Changes apply to every day in it.</p>` : ""}
+    <div class="seg2"><button data-edmode="job" aria-pressed="${!e.off}">Job</button><button data-edmode="off" aria-pressed="${e.off}">Day off</button></div>
+    <div class="f2"><label class="fl">${e.multi ? "First day" : "Date"}<input type="date" data-f="from" value="${e.from}"></label>
+      ${e.off ? "" : e.multi ? `<label class="fl">Last day<input type="date" data-f="thru" value="${e.thru}"></label>` : "<span></span>"}</div>
+    ${e.off ? "" : `<label class="ck"><input type="checkbox" data-f="multi"${e.multi ? " checked" : ""}> More than one day <small>(weekdays only)</small></label>
+    <label class="fl">Job<select data-f="job">${opt("", "Pick a job", !e.job)}${jobs.map((j) => opt(j.id, `${j.id} \xB7 ${j.name}`, j.id === e.job)).join("")}</select></label>
+    <label class="fl">Start<select data-f="start">${TIMES.concat(TIMES.includes(e.start) ? [] : [e.start]).map((t) => opt(t, time12(t), t === e.start)).join("")}</select></label>
+    <div class="fl">Crew<div class="pick">${crew.map((c) => `<button data-crew="${esc(c.name)}" aria-pressed="${e.crew.includes(c.name)}">${esc(first(c.name))}</button>`).join("")}</div></div>`}
+    <label class="fl">${e.off ? "Reason" : "Notes"}<textarea data-f="notes" rows="2" placeholder="${e.off ? "Thanksgiving, shop closed" : "Optional"}">${esc(e.notes)}</textarea></label>
+    ${e.err ? `<p class="ferr" role="alert">${esc(e.err)}</p>` : ""}
+    <div class="btns ${e.row ? "" : "one"}"><button class="btn go" data-act="edsave"${e.busy ? " disabled" : ""}>${e.busy ? "Saving\u2026" : "Save"}</button>${e.row ? `<button class="btn del" data-act="eddel"${e.busy ? " disabled" : ""}>${e.del ? "Tap again to delete" : "Delete"}</button>` : ""}</div>
+    ${e.row && e.job ? `<button class="lnk" data-job="${e.job}" data-act="edclose">Open the job page</button>` : ""}
+  </div></div>`;
+  }
+  function edCheck() {
+    let e = S.ed;
+    return e.from ? e.off ? e.notes.trim() ? "" : "Add a reason for the day off." : e.multi && (!e.thru || e.thru < e.from) ? "The last day has to be after the first day." : e.job ? e.crew.length ? "" : "Tick at least one person." : "Pick a job." : "Pick a date.";
+  }
+  async function edSave(del) {
+    let e = S.ed;
+    if (e.err = del ? "" : edCheck(), e.err) return drawEditor();
+    e.busy = !0, drawEditor();
+    let item = e.off ? { date: e.from, thru: "", job: "", start: "", crew: [], notes: e.notes.trim() } : { date: e.from, thru: e.multi ? e.thru : "", job: e.job, start: e.start, crew: e.crew, notes: e.notes.trim() }, body = { u: S.key, action: del ? "delete" : e.row ? "update" : "add", row: e.row, expect: e.expect, item };
+    try {
+      let res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
+      if (!res.ok) throw new Error(res.error || "Could not save.");
+      S.ed = null, $("#sheet").innerHTML = "", await load(), toast(del ? "Removed from the schedule." : "Saved to the schedule.");
+    } catch (err) {
+      e.busy = !1, e.err = S.offline || !navigator.onLine ? "No signal. Nothing was saved, try again when you have service." : err.message, drawEditor();
+    }
   }
   var motionOK = matchMedia("(prefers-reduced-motion: no-preference)"), io = null, rafId = 0;
   function parallax() {
@@ -231,7 +321,7 @@
   }
   var navT = 0;
   function render(nav) {
-    render2();
+    render2(), $("#app").classList.remove("has-fab"), canEdit() && S.me && !S.job && ["today", "week", "cal"].includes(S.tab) && ($("#app").classList.add("has-fab"), $("#app").insertAdjacentHTML("beforeend", `<button class="fab" data-act="edadd">${PLUS}Add</button>`));
     let a = $("#app");
     a.className = "", nav && motionOK.matches && (a.offsetWidth, a.className = "nv-" + nav, clearTimeout(navT), navT = setTimeout(() => {
       a.className = "";
@@ -258,7 +348,16 @@
     let b = e.target.closest("button, .ov");
     if (!b) return;
     let d = b.dataset;
-    if (b.classList.contains("ov") && e.target !== b) return;
+    if (b.classList.contains("ov") && e.target !== b || d.act === "edclose" && (S.ed = null, $("#sheet").innerHTML = "", !d.job))
+      return;
+    if (d.edrow) return editor(JSON.parse(d.edrow));
+    if (d.edmode)
+      return S.ed.off = d.edmode === "off", S.ed.err = "", drawEditor();
+    if (d.crew && S.ed) {
+      let c = S.ed.crew, i = c.indexOf(d.crew);
+      i < 0 ? c.push(d.crew) : c.splice(i, 1), b.setAttribute("aria-pressed", i < 0);
+      return;
+    }
     if (d.tab)
       return d.tab === S.tab && !S.job ? scrollTo({ top: 0, behavior: motionOK.matches ? "smooth" : "auto" }) : (S.tab = d.tab, S.job = null, scrollTo(0, 0), render("tab"));
     if (d.job) return openJob(d.job);
@@ -274,7 +373,7 @@
     else if (act === "mprev" || act === "mnext" || act === "mnow") {
       let f = fromKey(S.month);
       act === "mnow" ? S.month = today().slice(0, 8) + "01" : (f.setMonth(f.getMonth() + (act === "mprev" ? -1 : 1)), S.month = keyOf(f)), S.sel = S.month.slice(0, 7) === today().slice(0, 7) ? today() : S.month, render(act === "mprev" ? "prev" : act === "mnext" ? "next" : "tab");
-    } else act === "settings" ? settings() : act === "close" ? $("#sheet").innerHTML = "" : act === "refresh" && ($("#sheet").innerHTML = "", load(!0));
+    } else act === "edadd" ? editor({ date: S.tab === "cal" ? S.sel : S.tab === "week" && S.week > today() ? S.week : today() }) : act === "edsave" ? edSave(!1) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "close" ? $("#sheet").innerHTML = "" : act === "refresh" && ($("#sheet").innerHTML = "", load(!0));
   });
   var toastT = 0;
   function toast(msg) {
@@ -293,6 +392,16 @@
   document.addEventListener("visibilitychange", () => {
     document.hidden || load();
   });
+  var edField = (e) => {
+    let el = e.target.closest("[data-f]");
+    if (!el || !S.ed) return;
+    let f = el.dataset.f;
+    if (f === "multi")
+      return S.ed.multi = el.checked, S.ed.multi && !S.ed.thru && (S.ed.thru = addDays(S.ed.from, 4)), drawEditor();
+    S.ed[f] = el.value, S.ed.del = !1, S.ed.err && (S.ed.err = "");
+  };
+  document.addEventListener("input", edField);
+  document.addEventListener("change", edField);
   var MTN = I('<path d="M3 19L9.5 8l3.5 5.5L15.5 10 21 19z"/>', 22);
   document.body.insertAdjacentHTML("beforeend", `<div id="ptr" aria-hidden="true"><div class="pi"><i class="arc"></i>${MTN}</div></div>`);
   document.addEventListener("touchstart", () => {
@@ -320,6 +429,7 @@
   });
   render("tab");
   load();
+  loadWeather();
   !PREVIEW && "serviceWorker" in navigator && navigator.serviceWorker.register("sw.js").catch(() => {
   });
 })();
