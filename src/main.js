@@ -92,7 +92,7 @@ async function load(manual) {
   try {
     const r = await fetch(PREVIEW ? DATA_URL : DATA_URL + '?u=' + encodeURIComponent(S.key), { cache: 'no-store' });
     if (!r.ok) throw new Error('http');
-    const d = await r.json(); if (__PREVIEW__) { d.me = (d.mockKeys || {})[S.key] || null; d.canEdit = (d.mockEditors || []).includes(d.me); } // preview only: sample data carries test codes
+    const d = await r.json(); if (__PREVIEW__) { d.me = (d.mockKeys || {})[S.key] || null; d.canEdit = (d.mockEditors || []).includes(d.me); if (!d.canEdit) { d.myReceipts = (d.receipts || []).filter(r => r.by === d.me); delete d.receipts; } } // preview only: sample data carries test codes
     S.offline = false;
     if (!d.me) { S.bad = true; S.me = S.data = null; store.set('me', null); store.set('data', null); }
     else { S.bad = false; S.me = d.me; fresh = trackChanges(S.data, d); S.data = d; store.set('me', d.me); store.set('data', d); }
@@ -156,6 +156,7 @@ function todayScreen() {
     ${evening ? tmrRows.map(r => assignCard(r, 'Tomorrow · ' + tmrLabel, false)).join('') + `<div class="sec">Earlier today</div>` + todayBlock : todayBlock +
       (tmrRows.length ? `<div class="sec">Tomorrow · ${tmrLabel}</div>` + tmrRows.map(r => assignCard(r, fmtDay(tmr, { weekday: 'long' }), true)).join('')
       : next ? `<div class="sec">Next up · ${fmtDay(next.d, { weekday: 'short', month: 'short', day: 'numeric' })}</div>` + next.r.map(r => assignCard(r, fmtDay(next.d, { weekday: 'long' }), true)).join('') : '')}
+    <button class="rbtn" data-act="radd">${RCPT}<span><b>Add a receipt</b><small>Gas, supplies, food. Type it in, it goes to the office.</small></span></button>
   </main>`;
 }
 function daySection(d, rows) {
@@ -201,7 +202,7 @@ function weekScreen() {
 function jobsScreen() {
   const q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter(j => !q || (j.name + ' ' + j.gc + ' ' + j.address).toLowerCase().includes(q));
   const on = all.filter(j => j.status === 'In Progress'), up = all.filter(j => j.status !== 'In Progress').sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
-  const row = j => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}</div>
+  const row = j => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ''}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(' · '))}${j.start && j.status !== 'In Progress' && j.start >= today() ? ' · starts ' + fmtDay(j.start, { month: 'short', day: 'numeric', year: j.start.slice(0, 4) === today().slice(0, 4) ? undefined : 'numeric' }) : ''}</div></button>`;
   $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
@@ -225,6 +226,7 @@ function jobScreen() {
     ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => { const d = addDays(today(), n), w = wxFor(j, d); if (!w) return '';
       return `<div class="wd"><b>${n ? fmtDay(d, { weekday: 'short' }) : 'Today'}</b>${wxIcon(w.code, 24)}<span>${w.hi}° <i>${w.lo}°</i></span><small>${w.pop}%</small></div>`; }).join('')}</div>` : ''}
     <div class="sech"><div class="sec">Scope &amp; products</div>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ''}</div><div class="card">${groups.length ? groups.map(spec).join('') : '<div class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</div>'}</div>
+    ${rcptSection(j)}
     <div class="sech"><div class="sec">Site &amp; contacts</div>${canEdit() ? '<button class="addl" data-act="jedit">Edit</button>' : ''}</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[['Contact', site.contact], ['Phone', site.phone], ['Email', site.email], ['Access', site.access]].filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join('')}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map(r => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join('')}</div>` : ''}
   </main>`;
@@ -365,6 +367,7 @@ function scopeForm(j, i) {  // i: index into j.scope, or -1 for a new line
   drawForm();
 }
 function drawForm() {
+  if (S.form.kind === 'rcpt') return drawRcpt();
   const f = S.form, v = f.v, job = f.kind === 'scope' && jobById(f.job), isJob = f.kind === 'job';
   const areas = job ? [...new Set(job.scope.map(s => s.area).filter(Boolean))] : [];
   const field = ([k, label, type, opts]) => {
@@ -389,6 +392,7 @@ function drawForm() {
 }
 function formCheck() {
   const f = S.form, v = f.v;
+  if (f.kind === 'rcpt') return rcptCheck(v);
   if (f.kind === 'job') {
     if (!f.row) {
       const id = String(v.id).trim().toUpperCase(); v.id = id;
@@ -406,12 +410,12 @@ async function formSave(del) {
   const item = Object.fromEntries(Object.entries(f.v).map(([k, x]) => [k, typeof x === 'string' ? x.trim() : x]));
   const body = { u: S.key, action: f.kind, op: del ? 'delete' : f.row ? 'update' : 'add', row: f.row, expect: f.expect, job: f.job, item };
   try {
-    const res = __PREVIEW__ ? previewForm(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+    const res = __PREVIEW__ ? (f.kind === 'rcpt' ? previewRcpt(body) : previewForm(body)) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'Could not save.');
     S.form = null; closeSheet();
     if (f.kind === 'job' && !f.row) S.job = item.id;
     if (__PREVIEW__) render(); else await load();
-    toast(del ? 'Deleted.' : 'Saved to the sheet.');
+    toast(del ? 'Deleted.' : f.kind === 'rcpt' ? 'Receipt saved.' : 'Saved to the sheet.');
   } catch (err) { f.busy = false; f.err = !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawForm(); }
 }
 function previewForm(b) {  // preview only: apply the change to the sample data the way the sheet script would
@@ -427,6 +431,71 @@ function previewForm(b) {  // preview only: apply the change to the sample data 
   if (b.op === 'delete') j.scope.splice(i, 1);
   else if (i >= 0) Object.assign(j.scope[i], it);
   else { const after = j.scope.map(s => s.area).lastIndexOf(it.area); j.scope.splice(after < 0 ? j.scope.length : after + 1, 0, { ...it, row: 900 + Math.round(Math.random() * 99) }); }
+  return { ok: true };
+}
+
+/* ---------- receipts (typed in; no photos yet) ----------
+   Everyone can add receipts. Crew members only ever get their own receipts in the feed;
+   job totals and everyone's receipts only reach people with Can edit. */
+const CATS = ['Fuel', 'Materials', 'Food', 'Lodging', 'Equipment', 'Other'], CARDS = ['Gas card', 'General card'];
+const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const CAT_COLOR = { Fuel: '#ec5b37', Materials: '#2f7be0', Food: '#eba312', Lodging: '#8b5cf6', Equipment: '#0ea5a5', Other: '#8a938c' };
+const RCPT = I('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>', 18);
+const recsFor = id => (canEdit() ? S.data?.receipts : S.data?.myReceipts || []).filter(r => r.job === id).sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row);
+const jobTotal = id => (S.data?.receipts || []).filter(r => r.job === id).reduce((t, r) => t + (+r.amount || 0), 0);
+function rcptForm(src) {  // src: a receipt to edit, or { job } to add
+  const r = src.row ? src : null, job = src.job || mineOn(today())[0]?.job || '';
+  S.form = { kind: 'rcpt', row: r?.row || null, expect: r ? { job: r.job, amount: r.amount, date: r.date } : null, del: false, busy: false, err: '',
+    v: r ? { job: r.job, date: r.date, amount: String(r.amount), card: r.card, cat: r.cat, vendor: r.vendor || '', notes: r.notes || '' }
+      : { job, date: today(), amount: '', card: 'Gas card', cat: 'Fuel', vendor: '', notes: '' } };
+  drawForm();
+}
+function drawRcpt() {
+  const f = S.form, v = f.v, jobs = (S.data?.jobs || []);
+  const opt = (val, l, sel) => `<option value="${esc(val)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
+  showSheet(`<div class="ov" data-act="fclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="fH">
+    <div class="sh"><h2 id="fH">${f.row ? 'Edit receipt' : 'Add a receipt'}</h2><button class="done" data-act="fclose">Cancel</button></div>
+    <label class="fl">Job<select data-ff="job">${opt('', 'Pick a job', !v.job)}${jobs.map(j => opt(j.id, `${j.id} · ${j.name}`, j.id === v.job)).join('')}</select></label>
+    <div class="f2"><label class="fl">Amount<span class="amt"><i>$</i><input data-ff="amount" inputmode="decimal" placeholder="0.00" value="${esc(v.amount)}" autocomplete="off"></span></label>
+      <label class="fl">Date<input type="date" data-ff="date" value="${v.date}" max="${today()}"></label></div>
+    <div class="f2"><label class="fl">Card<select data-ff="card">${CARDS.map(c => opt(c, c, c === v.card)).join('')}</select></label>
+      <label class="fl">Category<select data-ff="cat">${CATS.map(c => opt(c, c, c === v.cat)).join('')}</select></label></div>
+    <label class="fl">Where<input data-ff="vendor" value="${esc(v.vendor)}" placeholder="Chevron, Sherwin-Williams…" autocomplete="off"></label>
+    <label class="fl">Note<textarea data-ff="notes" rows="2" placeholder="Optional">${esc(v.notes)}</textarea></label>
+    ${f.err ? `<p class="ferr" role="alert">${esc(f.err)}</p>` : ''}
+    <div class="btns ${f.row ? '' : 'one'}"><button class="btn go" data-act="fsave"${f.busy ? ' disabled' : ''}>${f.busy ? 'Saving…' : 'Save receipt'}</button>${f.row ? `<button class="btn del" data-act="fdel"${f.busy ? ' disabled' : ''}>${f.del ? 'Tap again to delete' : 'Delete'}</button>` : ''}</div>
+  </div></div>`);
+}
+function rcptCheck(v) {
+  if (!v.job) return 'Pick the job this receipt is for.';
+  const a = String(v.amount).replace(/[$,\s]/g, ''); if (!/^\d+(\.\d{1,2})?$/.test(a) || !(+a > 0)) return 'Type the amount, like 64.20.';
+  v.amount = a;
+  if (!v.date || v.date > today()) return 'Pick the date on the receipt.';
+  return '';
+}
+function rcptRow(r, who) {
+  const by = who && r.by ? first(r.by) : '';
+  return `<button class="rc" data-rrow="${r.row}"><span class="rcd">${fmtDay(r.date, { month: 'short', day: 'numeric' })}</span>
+    <span class="rcm"><b>${esc(r.vendor || r.cat)}</b><small>${esc([r.vendor ? r.cat : '', r.card, by].filter(Boolean).join(' · '))}</small></span><span class="rca">${money(r.amount)}</span></button>`;
+}
+function rcptSection(j) {
+  const list = recsFor(j.id), add = `<button class="addl" data-act="radd">+ Add receipt</button>`;
+  if (!canEdit()) return `<div class="sech"><div class="sec">Your receipts</div>${add}</div><div class="card rcl">${list.length ? list.map(r => rcptRow(r, false)).join('') : '<div class="empty">Got a gas or supply receipt for this job? Add it here.</div>'}</div>`;
+  const total = list.reduce((t, r) => t + (+r.amount || 0), 0), by = {};
+  list.forEach(r => { by[r.cat] = (by[r.cat] || 0) + (+r.amount || 0); });
+  const cats = CATS.filter(c => by[c]), shown = S.allRcpt === j.id ? list : list.slice(0, 6);
+  return `<div class="sech"><div class="sec">Costs <span class="only">only you and editors see this</span></div>${add}</div>
+  <div class="card rcl">${list.length ? `<div class="ctot"><b>${money(total)}</b><span>${list.length} receipt${list.length > 1 ? 's' : ''}</span></div>
+    <div class="cbar">${cats.map(c => `<i style="flex:${by[c]};background:${CAT_COLOR[c]}"></i>`).join('')}</div>
+    <div class="clg">${cats.map(c => `<span><i style="background:${CAT_COLOR[c]}"></i>${c} <b>${money(by[c])}</b></span>`).join('')}</div>
+    ${shown.map(r => rcptRow(r, true)).join('')}${list.length > shown.length ? `<button class="lnk more" data-act="rall">Show all ${list.length}</button>` : ''}`
+    : '<div class="empty">No receipts yet.</div>'}</div>`;
+}
+function previewRcpt(b) {  // preview only: same as the sheet script would do
+  const key = canEdit() ? 'receipts' : 'myReceipts', list = S.data[key] = S.data[key] || [], i = list.findIndex(r => r.row === b.row);
+  if (b.op === 'delete') { list.splice(i, 1); return { ok: true }; }
+  const it = { ...b.item, amount: +b.item.amount, by: i >= 0 ? list[i].by : S.me };
+  if (i >= 0) Object.assign(list[i], it); else list.push({ ...it, row: 500 + list.length });
   return { ok: true };
 }
 
@@ -511,6 +580,7 @@ document.addEventListener('click', e => {
   if (b.classList.contains('ov') && e.target !== b) return;
   if (d.act === 'fclose') { S.form = null; closeSheet(); return; }
   if (d.sidx !== undefined) return scopeForm(jobById(S.job), +d.sidx);
+  if (d.rrow) return rcptForm((canEdit() ? S.data.receipts : S.data.myReceipts).find(r => r.row === +d.rrow));
   if (d.act === 'edclose') { S.ed = null; closeSheet(); if (!d.job) return; }
   if (d.edrow) return editor(JSON.parse(d.edrow));
   if (d.edmode) { S.ed.off = d.edmode === 'off'; S.ed.err = ''; return drawEditor(); }
@@ -530,6 +600,8 @@ document.addEventListener('click', e => {
   else if (act === 'jedit') jobForm(jobById(S.job));
   else if (act === 'jnew') jobForm(null);
   else if (act === 'sadd') scopeForm(jobById(S.job), -1);
+  else if (act === 'radd') rcptForm({ job: S.job || '' });
+  else if (act === 'rall') { S.allRcpt = S.job; render(); }
   else if (act === 'fsave') formSave(false);
   else if (act === 'fdel') { if (S.form.del) formSave(true); else { S.form.del = true; drawForm(); } }
   else if (act === 'eddel') { if (S.ed.del) edSave(true); else { S.ed.del = true; drawEditor(); } }
@@ -547,7 +619,8 @@ const edField = e => { const el = e.target.closest('[data-f]'); if (!el || !S.ed
   S.ed[f] = el.value; S.ed.del = false; if (S.ed.err) { S.ed.err = ''; } };
 document.addEventListener('input', edField); document.addEventListener('change', edField);
 const fField = e => { const el = e.target.closest('[data-ff]'); if (!el || !S.form) return; S.form.v[el.dataset.ff] = el.value; S.form.del = false;
-  if (el.dataset.ff === 'status') drawForm(); };
+  if (el.dataset.ff === 'status') drawForm();
+  if (el.dataset.ff === 'card' && S.form.kind === 'rcpt') { S.form.v.cat = el.value === 'Gas card' ? 'Fuel' : S.form.v.cat === 'Fuel' ? 'Materials' : S.form.v.cat; drawForm(); } };
 document.addEventListener('input', fField); document.addEventListener('change', fField);
 /* ---------- pull to refresh (touch phones) ---------- */
 const MTN = I('<path d="M3 19L9.5 8l3.5 5.5L15.5 10 21 19z"/>', 22);
