@@ -92,12 +92,12 @@ async function load(manual) {
   try {
     const r = await fetch(PREVIEW ? DATA_URL : DATA_URL + '?u=' + encodeURIComponent(S.key), { cache: 'no-store' });
     if (!r.ok) throw new Error('http');
-    const d = await r.json(); if (__PREVIEW__) d.me = (d.mockKeys || {})[S.key] || null; // preview only: sample data carries test codes
+    const d = await r.json(); if (__PREVIEW__) { d.me = (d.mockKeys || {})[S.key] || null; d.canEdit = (d.mockEditors || []).includes(d.me); } // preview only: sample data carries test codes
     S.offline = false;
     if (!d.me) { S.bad = true; S.me = S.data = null; store.set('me', null); store.set('data', null); }
     else { S.bad = false; S.me = d.me; fresh = trackChanges(S.data, d); S.data = d; store.set('me', d.me); store.set('data', d); }
   } catch (e) { S.offline = true; }
-  render();
+  render(); loadWeather();
   if (fresh.length) toast('Schedule updated: ' + (fresh.length > 3 ? fresh.length + ' days changed' : fresh.map(d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ')));
   else if (manual) toast(S.offline ? 'No signal. Showing the last schedule.' : 'Schedule is up to date.');
 }
@@ -124,6 +124,7 @@ function assignCard(r, label, small) {
     <div class="jn">${esc(j.name)}</div>
     <div class="meta">${esc(j.gc ? 'GC: ' + j.gc : '')}</div>
     ${j.address ? `<div class="addr">${PIN}<span>${esc(j.address)}</span></div>` : ''}
+    ${wxLine(j, r.date)}
     ${pwStrip(j)}
     ${small ? '' : `<div class="btns">${j.address ? `<a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a>` : '<span></span>'}<button class="btn" data-job="${j.id}">${INFO}Job info</button></div>`}
     ${others.length ? `<div class="with">With ${crewChips(others)}</div>` : ''}
@@ -159,8 +160,8 @@ function todayScreen() {
 }
 function daySection(d, rows) {
   return `<section class="day${d === today() ? ' now' : ''}${S.changed.has(d) ? ' chg' : ''}" data-date="${d}"><div class="dh">${fmtDay(d, { weekday: 'long' })}<span>${fmtDay(d, { month: 'short', day: 'numeric' })}</span>${S.changed.has(d) ? '<strong class="ctag">Updated</strong>' : ''}${d === today() ? '<em>Today</em>' : ''}</div>
-      ${rows.length ? rows.map(r => r.job ? `<button class="as" data-job="${r.job}"><span class="t">${time12(r.start).replace(' ', ' ')}</span><span class="n">${S.tab === 'cal' ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ''}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}</span>${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ''}</button>`
-        : `<div class="dn">${esc(r.notes || 'No work')}</div>`).join('') : `<div class="dn">${S.mine ? 'Not scheduled' : 'No work scheduled'}</div>`}</section>`;
+      ${rows.length ? rows.map(r => r.job ? `<button class="as${canEdit() ? ' ed' : ''}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(' ', ' ')}</span><span class="n">${S.tab === 'cal' ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ''}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ''}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ''}</button>`
+        : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || 'No work')}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || 'No work')}</div>`).join('') : `<div class="dn">${S.mine ? 'Not scheduled' : 'No work scheduled'}</div>`}</section>`;
 }
 // Each job keeps one color everywhere on the calendar (bars, legend, day list). Mid tones read on light and dark.
 const PALETTE = ['#5e9474', '#5f86b0', '#c49a4a', '#b86b52', '#8a78b8', '#4f9592', '#b06a8a', '#86935a', '#7b8794'];
@@ -221,6 +222,8 @@ function jobScreen() {
     <div class="card">${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
       ${pwStrip(j)}
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ''}</div>
+    ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => { const d = addDays(today(), n), w = wxFor(j, d); if (!w) return '';
+      return `<div class="wd"><b>${n ? fmtDay(d, { weekday: 'short' }) : 'Today'}</b>${wxIcon(w.code, 24)}<span>${w.hi}° <i>${w.lo}°</i></span><small>${w.pop}%</small></div>`; }).join('')}</div>` : ''}
     <div class="sec">Scope &amp; products</div><div class="card">${groups.length ? groups.map(spec).join('') : '<div class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</div>'}</div>
     <div class="sec">Site &amp; contacts</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[['Contact', site.contact], ['Phone', site.phone], ['Email', site.email], ['Access', site.access]].filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join('')}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map(r => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join('')}</div>` : ''}
@@ -234,6 +237,108 @@ function settings() {
     ${installed() ? '' : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? '<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>' : '<li>In Chrome, tap the ⋮ menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>'}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? ' · schedule ' + new Date(S.data.updated).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</p></div></div>`;
+}
+
+/* ---------- weather (Open-Meteo, free, no key). Each job has geo [lat, lng] from the sheet script. ---------- */
+const WX_ICONS = {
+  sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  part: '<path d="M8 5.5V4M3.8 9.7H2.5M4.9 6.6l-.9-.9M11.6 6.6l.9-.9"/><path d="M5.6 11.3a3.4 3.4 0 0 1 6-2.6"/><path d="M8 19h9.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 8 19z"/>',
+  cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 18.5z"/>',
+  rain: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 14.5z"/><path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>',
+  snow: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7 14.5z"/><path d="M8.5 18.5h.01M12 20h.01M15.5 18.5h.01"/>',
+  fog: '<path d="M4 9h16M6 13h12M4 17h16"/>'
+};
+const wxKind = c => c <= 1 ? 'sun' : c <= 2 ? 'part' : c === 3 ? 'cloud' : c <= 48 ? 'fog' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : 'rain';
+const wxIcon = (c, s = 18) => I(WX_ICONS[wxKind(c)], s);
+const WX = { data: store.get('wx') || {}, at: store.get('wxAt') || 0 };
+const geoKey = j => j?.geo ? j.geo.map(n => (+n).toFixed(2)).join(',') : '';
+const wxFor = (j, d) => WX.data[geoKey(j)]?.[d] || null;
+const wxLine = (j, d) => {
+  const w = wxFor(j, d); if (!w) return '';
+  return `<div class="wx">${wxIcon(w.code)}<b>${w.hi}°</b><span>/ ${w.lo}°</span><span class="wxp">${I('<path d="M12 3.5s-5.5 6-5.5 10a5.5 5.5 0 0 0 11 0c0-4-5.5-10-5.5-10z"/>', 13)}${w.pop}%</span></div>`;
+};
+const wxMini = (j, d) => { const w = wxFor(j, d); return w ? `<span class="wxs">${wxIcon(w.code, 15)}${w.hi}°${w.pop >= 20 ? ` · ${w.pop}%` : ''}</span>` : ''; };
+async function loadWeather(force) {
+  const jobs = (S.data?.jobs || []).filter(j => j.geo), keys = [...new Set(jobs.map(geoKey))];
+  if (!keys.length || (!force && Date.now() - WX.at < 36e5 && keys.every(k => WX.data[k]))) return;
+  try {
+    let list;
+    if (__PREVIEW__) list = keys.map((k, i) => previewForecast(i));
+    else {
+      const [lat, lng] = [keys.map(k => k.split(',')[0]).join(','), keys.map(k => k.split(',')[1]).join(',')];
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=America%2FLos_Angeles&forecast_days=10`);
+      if (!r.ok) throw new Error('wx'); const j = await r.json(); list = Array.isArray(j) ? j : [j];
+    }
+    keys.forEach((k, i) => { const d = list[i]?.daily; if (!d) return; WX.data[k] = Object.fromEntries(d.time.map((t, n) => [t, { code: d.weather_code[n], hi: Math.round(d.temperature_2m_max[n]), lo: Math.round(d.temperature_2m_min[n]), pop: d.precipitation_probability_max[n] ?? 0 }])); });
+    WX.at = Date.now(); store.set('wx', WX.data); store.set('wxAt', WX.at); render();
+  } catch (e) { /* no weather is fine; the schedule still works */ }
+}
+function previewForecast(i) {  // sample forecast so the preview shows real-looking weather
+  const time = [...Array(10)].map((_, n) => addDays(today(), n)), seed = [61, 64, 3, 2, 80, 51, 1, 3, 63, 0];
+  return { daily: { time, weather_code: time.map((_, n) => seed[(n + i) % 10]), temperature_2m_max: time.map((_, n) => 47 + ((n * 3 + i * 2) % 9)), temperature_2m_min: time.map((_, n) => 36 + ((n * 5 + i) % 10)), precipitation_probability_max: time.map((_, n) => [80, 70, 15, 10, 90, 40, 5, 20, 65, 0][(n + i) % 10]) } };
+}
+
+/* ---------- editing the schedule (only for people with "Can edit" on the Crew tab) ---------- */
+const TIMES = ['5:00', '5:30', '6:00', '6:30', '7:00', '7:30', '8:00', '8:30', '9:00', '10:00', '11:00', '12:00', '13:00'].map(t => (t.length < 5 ? '0' : '') + t);
+const canEdit = () => !!S.data?.canEdit;
+const PENCIL = I('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 16);
+const PLUS = I('<path d="M12 5v14M5 12h14"/>', 22);
+function editor(src) {  // src: a schedule entry to edit, or { date } to add
+  const e = S.ed = { row: src.row || null, from: src.from || src.date, thru: src.thru || '', job: src.job || '', start: src.start || '07:00',
+    crew: [...(src.crew || [])], notes: src.notes || '', off: !!src.row && !src.job, expect: src.row ? { date: src.from || src.date, job: src.job || '' } : null, del: false, busy: false, err: '' };
+  e.multi = !!e.thru; drawEditor();
+}
+function drawEditor() {
+  const e = S.ed, jobs = (S.data?.jobs || []), crew = S.data?.crew || [];
+  const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
+  $('#sheet').innerHTML = `<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
+    <div class="sh"><h2 id="edH">${e.row ? 'Edit schedule' : 'Add to schedule'}</h2><button class="done" data-act="edclose">Cancel</button></div>
+    ${e.row && e.thru ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: 'short', month: 'short', day: 'numeric' })} to ${fmtDay(e.thru, { weekday: 'short', month: 'short', day: 'numeric' })}. Changes apply to every day in it.</p>` : ''}
+    <div class="seg2"><button data-edmode="job" aria-pressed="${!e.off}">Job</button><button data-edmode="off" aria-pressed="${e.off}">Day off</button></div>
+    <div class="f2"><label class="fl">${e.multi ? 'First day' : 'Date'}<input type="date" data-f="from" value="${e.from}"></label>
+      ${e.off ? '' : e.multi ? `<label class="fl">Last day<input type="date" data-f="thru" value="${e.thru}"></label>` : '<span></span>'}</div>
+    ${e.off ? '' : `<label class="ck"><input type="checkbox" data-f="multi"${e.multi ? ' checked' : ''}> More than one day <small>(weekdays only)</small></label>
+    <label class="fl">Job<select data-f="job">${opt('', 'Pick a job', !e.job)}${jobs.map(j => opt(j.id, `${j.id} · ${j.name}`, j.id === e.job)).join('')}</select></label>
+    <label class="fl">Start<select data-f="start">${TIMES.concat(TIMES.includes(e.start) ? [] : [e.start]).map(t => opt(t, time12(t), t === e.start)).join('')}</select></label>
+    <div class="fl">Crew<div class="pick">${crew.map(c => `<button data-crew="${esc(c.name)}" aria-pressed="${e.crew.includes(c.name)}">${esc(first(c.name))}</button>`).join('')}</div></div>`}
+    <label class="fl">${e.off ? 'Reason' : 'Notes'}<textarea data-f="notes" rows="2" placeholder="${e.off ? 'Thanksgiving, shop closed' : 'Optional'}">${esc(e.notes)}</textarea></label>
+    ${e.err ? `<p class="ferr" role="alert">${esc(e.err)}</p>` : ''}
+    <div class="btns ${e.row ? '' : 'one'}"><button class="btn go" data-act="edsave"${e.busy ? ' disabled' : ''}>${e.busy ? 'Saving…' : 'Save'}</button>${e.row ? `<button class="btn del" data-act="eddel"${e.busy ? ' disabled' : ''}>${e.del ? 'Tap again to delete' : 'Delete'}</button>` : ''}</div>
+    ${e.row && e.job ? `<button class="lnk" data-job="${e.job}" data-act="edclose">Open the job page</button>` : ''}
+  </div></div>`;
+}
+function edCheck() {
+  const e = S.ed;
+  if (!e.from) return 'Pick a date.';
+  if (e.off) return e.notes.trim() ? '' : 'Add a reason for the day off.';
+  if (e.multi && (!e.thru || e.thru < e.from)) return 'The last day has to be after the first day.';
+  if (!e.job) return 'Pick a job.';
+  if (!e.crew.length) return 'Tick at least one person.';
+  return '';
+}
+async function edSave(del) {
+  const e = S.ed; e.err = del ? '' : edCheck(); if (e.err) return drawEditor();
+  e.busy = true; drawEditor();
+  const item = e.off ? { date: e.from, thru: '', job: '', start: '', crew: [], notes: e.notes.trim() }
+    : { date: e.from, thru: e.multi ? e.thru : '', job: e.job, start: e.start, crew: e.crew, notes: e.notes.trim() };
+  const body = { u: S.key, action: del ? 'delete' : e.row ? 'update' : 'add', row: e.row, expect: e.expect, item };
+  try {
+    const res = __PREVIEW__ ? previewWrite(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+    if (!res.ok) throw new Error(res.error || 'Could not save.');
+    S.ed = null; $('#sheet').innerHTML = '';
+    if (__PREVIEW__) { render(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); } else { await load(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); }
+  } catch (err) { e.busy = false; e.err = S.offline || !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawEditor(); }
+}
+function previewWrite(b) {  // preview only: apply the change to the sample data the way the sheet script would
+  const sched = S.data.schedule, rows = new Set(sched.map(s => s.row)), it = b.item;
+  const strip = r => { for (let i = sched.length - 1; i >= 0; i--) if (sched[i].row === r) sched.splice(i, 1); };
+  if (b.action !== 'add') strip(b.row);
+  if (b.action === 'delete') return { ok: true };
+  const row = b.row || Math.max(1, ...rows) + 1, off = new Set(sched.filter(s => !s.job).map(s => s.date));
+  let days = [it.date];
+  if (it.job && it.thru > it.date) { days = []; for (let d = it.date; d <= it.thru; d = addDays(d, 1)) { const w = fromKey(d).getDay(); if (w && w < 6 && !off.has(d)) days.push(d); } }
+  days.forEach(d => sched.push({ date: d, job: it.job, crew: it.crew, start: it.start, notes: it.notes, row, from: it.date, thru: it.thru }));
+  return { ok: true };
 }
 
 /* ---------- render & events ---------- */
@@ -271,7 +376,8 @@ function motion() {
 // nav: 'push' (open a job), 'pop' (back), 'tab', 'next' / 'prev' (week or month arrows). Animates the new page in.
 let navT = 0;
 function render(nav) {
-  render2();
+  render2(); $('#app').classList.remove('has-fab');
+  if (canEdit() && S.me && !S.job && ['today', 'week', 'cal'].includes(S.tab)) $('#app').classList.add('has-fab'), $('#app').insertAdjacentHTML('beforeend', `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
   const a = $('#app'); a.className = '';
   if (nav && motionOK.matches) { void a.offsetWidth; a.className = 'nv-' + nav; clearTimeout(navT); navT = setTimeout(() => { a.className = ''; }, 480); }
   motion();
@@ -289,6 +395,10 @@ function render2() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button, .ov'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('ov') && e.target !== b) return;
+  if (d.act === 'edclose') { S.ed = null; $('#sheet').innerHTML = ''; if (!d.job) return; }
+  if (d.edrow) return editor(JSON.parse(d.edrow));
+  if (d.edmode) { S.ed.off = d.edmode === 'off'; S.ed.err = ''; return drawEditor(); }
+  if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
   if (d.tab) { if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
   if (d.job) return openJob(d.job);
   if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; return render(); }
@@ -299,6 +409,9 @@ document.addEventListener('click', e => {
   else if (act === 'mprev' || act === 'mnext' || act === 'mnow') {
     const f = fromKey(S.month); if (act === 'mnow') S.month = today().slice(0, 8) + '01'; else { f.setMonth(f.getMonth() + (act === 'mprev' ? -1 : 1)); S.month = keyOf(f); }
     S.sel = S.month.slice(0, 7) === today().slice(0, 7) ? today() : S.month; render(act === 'mprev' ? 'prev' : act === 'mnext' ? 'next' : 'tab'); }
+  else if (act === 'edadd') editor({ date: S.tab === 'cal' ? S.sel : S.tab === 'week' && S.week > today() ? S.week : today() });
+  else if (act === 'edsave') edSave(false);
+  else if (act === 'eddel') { if (S.ed.del) edSave(true); else { S.ed.del = true; drawEditor(); } }
   else if (act === 'settings') settings();
   else if (act === 'close') $('#sheet').innerHTML = '';
   else if (act === 'refresh') { $('#sheet').innerHTML = ''; load(true); }
@@ -307,6 +420,11 @@ let toastT = 0;
 function toast(msg) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+// editor form fields
+const edField = e => { const el = e.target.closest('[data-f]'); if (!el || !S.ed) return; const f = el.dataset.f;
+  if (f === 'multi') { S.ed.multi = el.checked; if (S.ed.multi && !S.ed.thru) S.ed.thru = addDays(S.ed.from, 4); return drawEditor(); }
+  S.ed[f] = el.value; S.ed.del = false; if (S.ed.err) { S.ed.err = ''; } };
+document.addEventListener('input', edField); document.addEventListener('change', edField);
 /* ---------- pull to refresh (touch phones) ---------- */
 const MTN = I('<path d="M3 19L9.5 8l3.5 5.5L15.5 10 21 19z"/>', 22);
 document.body.insertAdjacentHTML('beforeend', `<div id="ptr" aria-hidden="true"><div class="pi"><i class="arc"></i>${MTN}</div></div>`);
@@ -326,5 +444,5 @@ document.addEventListener('touchend', async () => {
   await Promise.all([load(true), new Promise(r => setTimeout(r, 700))]);
   ptr.classList.remove('spin'); ptrAt(-70, 0);
 });
-render('tab'); load();
+render('tab'); load(); loadWeather();
 if (!PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
