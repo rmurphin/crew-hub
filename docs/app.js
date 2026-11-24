@@ -130,32 +130,30 @@
   }
   function daySection(d, rows) {
     return `<section class="day${d === today() ? " now" : ""}${S.changed.has(d) ? " chg" : ""}" data-date="${d}"><div class="dh">${fmtDay(d, { weekday: "long" })}<span>${fmtDay(d, { month: "short", day: "numeric" })}</span>${S.changed.has(d) ? '<strong class="ctag">Updated</strong>' : ""}${d === today() ? "<em>Today</em>" : ""}</div>
-      ${rows.length ? rows.map((r) => r.job ? `<button class="as${canEdit() ? " ed" : ""}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(" ", "\xA0")}</span><span class="n">${S.tab === "cal" ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ""}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ""}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ""}</button>` : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || "No work")}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || "No work")}</div>`).join("") : `<div class="dn">${S.mine ? "Not scheduled" : "No work scheduled"}</div>`}</section>`;
+      ${rows.length ? rows.map((r) => r.job ? `<button class="as${canEdit() ? " ed" : ""}${r.crew.includes(S.me) ? " me" : ""}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(" ", "\xA0")}</span><span class="n">${S.tab === "cal" ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ""}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ""}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ""}</button>` : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || "No work")}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || "No work")}</div>`).join("") : '<div class="dn">No work scheduled</div>'}</section>`;
   }
   var PALETTE = ["#22a861", "#2f7be0", "#eba312", "#ec5b37", "#8b5cf6", "#0ea5a5", "#e0418f", "#7fae12", "#b5793a"], jobColor = (id) => {
     let ids = [...new Set((S.data?.schedule || []).filter((r) => r.job).map((r) => r.job))].sort();
     return PALETTE[Math.max(0, ids.indexOf(id)) % PALETTE.length];
   };
   function calScreen() {
-    let m0 = S.month, first2 = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7), lastDay = new Date(first2.getFullYear(), first2.getMonth() + 1, 0), weeks = Math.ceil(((first2.getDay() + 6) % 7 + lastDay.getDate()) / 7), rowsFor = (d) => rowsOn(d).filter((r) => !r.job || !S.mine || r.crew.includes(S.me)), cells = [...Array(weeks * 7)].map((_, i) => {
-      let d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter((r) => r.job), off = rows.find((r) => !r.job), cls = ["cd", d.slice(0, 7) !== mm && "out", d === today() && "tdy", d === S.sel && "sel", off && "off", S.changed.has(d) && "chg", i % 7 > 4 && "we", d < today() && "past"].filter(Boolean).join(" "), label = `${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}: ${off ? esc(off.notes || "off") : jobs.length ? jobs.map((r) => esc(jobById(r.job)?.name || r.job)).join(", ") : "nothing scheduled"}`;
+    let m0 = S.month, first2 = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7), lastDay = new Date(first2.getFullYear(), first2.getMonth() + 1, 0), weeks = Math.ceil(((first2.getDay() + 6) % 7 + lastDay.getDate()) / 7), rowsFor = (d) => rowsOn(d), cells = [...Array(weeks * 7)].map((_, i) => {
+      let d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter((r) => r.job), off = rows.find((r) => !r.job), out = d.slice(0, 7) !== mm, cls = ["cd", jobs.some((r) => r.crew.includes(S.me)) && "mine", out && "out", d === today() && "tdy", d === S.sel && "sel", off && "off", S.changed.has(d) && "chg", i % 7 > 4 && "we", d < today() && "past"].filter(Boolean).join(" "), label = `${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}: ${off ? esc(off.notes || "off") : jobs.length ? jobs.map((r) => esc(jobById(r.job)?.name || r.job)).join(", ") : "nothing scheduled"}`;
       return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ""}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map((r) => `<i style="background:${jobColor(r.job)}"></i>`).join("")}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ""}</span>`}</button>`;
-    }).join(""), legend = [...new Set((S.data?.schedule || []).filter((r) => r.job && r.date.startsWith(mm) && (!S.mine || r.crew.includes(S.me))).map((r) => r.job))].map((id) => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join("");
+    }).join(""), legend = [...new Set((S.data?.schedule || []).filter((r) => r.job && r.date.startsWith(mm)).map((r) => r.job))].map((id) => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join("");
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
-    <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first2.toLocaleDateString("en-US", { month: "long", year: "numeric" })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div>
-    <div class="seg"><button data-mine="1" aria-pressed="${S.mine}">My schedule</button><button data-mine="0" aria-pressed="${!S.mine}">Everyone</button></div></div></header>
+    <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first2.toLocaleDateString("en-US", { month: "long", year: "numeric" })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div></div></header>
   <main class="w"><div class="cal"><div class="cw" aria-hidden="true">${["M", "T", "W", "T", "F", "S", "S"].map((x) => `<span>${x}</span>`).join("")}</div><div class="cg">${cells}</div>
-    ${legend ? "" : `<p class="empty" style="margin:12px 4px 2px">${S.mine ? "Nothing on your schedule this month." : "Nothing scheduled this month."}</p>`}</div>
+    ${legend ? `<p class="mykey"><i></i>Days you're on the schedule</p>` : '<p class="empty" style="margin:12px 4px 2px">Nothing scheduled this month.</p>'}</div>
     ${daySection(S.sel, rowsFor(S.sel))}
     ${legend ? `<div class="sec">Jobs this month</div><div class="legend">${legend}</div>` : ""}</main>`;
   }
   function weekScreen() {
     let days = [...Array(7)].map((_, i) => addDays(S.week, i)), label = `${fmtDay(days[0], { month: "short", day: "numeric" })} \u2013 ${fmtDay(days[6], { month: "short", day: "numeric" })}`;
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
-    <div class="wk"><button data-act="wprev" aria-label="Previous week">${L}</button><b>${S.week === mondayOf(today()) ? "This week" : label}<br><span style="font-weight:500;font-size:13px;color:#9aa69d">${label}</span></b><button data-act="wnext" aria-label="Next week">${R}</button></div>
-    <div class="seg"><button data-mine="1" aria-pressed="${S.mine}">My schedule</button><button data-mine="0" aria-pressed="${!S.mine}">Everyone</button></div></div></header>
+    <div class="wk"><button data-act="wprev" aria-label="Previous week">${L}</button><b>${S.week === mondayOf(today()) ? "This week" : label}<br><span style="font-weight:500;font-size:13px;color:#9aa69d">${label}</span></b><button data-act="wnext" aria-label="Next week">${R}</button></div></div></header>
   <main class="w">${days.map((d) => {
-      let rows = rowsOn(d).filter((r) => !r.job || !S.mine || r.crew.includes(S.me));
+      let rows = rowsOn(d);
       return [0, 6].includes(fromKey(d).getDay()) && !rows.length ? "" : daySection(d, rows);
     }).join("")}</main>`;
   }
@@ -574,8 +572,6 @@
     if (d.job) return openJob(d.job);
     if (d.day)
       return S.sel = d.day, d.day.slice(0, 7) !== S.month.slice(0, 7) && (S.month = d.day.slice(0, 8) + "01"), render();
-    if (d.mine)
-      return S.mine = d.mine === "1", render();
     let act = d.act;
     if (act === "back")
       history.state?.job && (S.skipPop = !0, history.back()), closeJob();
