@@ -514,6 +514,10 @@
   }
   var navT = 0;
   function render(nav) {
+    if (S.splashHold) {
+      S.splashDirty = !0;
+      return;
+    }
     render2();
     let fab = canEdit() && S.me && !S.job && ["today", "week", "cal", "jobs"].includes(S.tab);
     canEdit() && S.me && !S.job && ["today", "week", "cal", "jobs"].includes(S.tab) && $("#app").insertAdjacentHTML("beforeend", S.tab === "jobs" ? `<button class="fab" data-act="jnew">${PLUS}New job</button>` : `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
@@ -643,19 +647,24 @@
     if (pull = null, ptr.classList.remove("drag", "ready"), !go) return ptrAt(-70, 0);
     ptr.classList.add("spin"), ptrAt(14, 0), await Promise.all([load(!0), new Promise((r) => setTimeout(r, 700))]), ptr.classList.remove("spin"), ptrAt(-70, 0);
   });
-  var splashT0 = performance.now();
-  $("#splash")?.insertAdjacentHTML("afterbegin", TOPO("splash"));
-  function splashDone() {
-    let el = $("#splash");
-    !el || el.dataset.going || (el.dataset.going = 1, setTimeout(() => {
-      el.classList.add("out"), S.me && S.data && render("tab"), setTimeout(() => el.remove(), 650);
-    }, Math.max(0, 1900 - (performance.now() - splashT0))));
-  }
+  var splash = $("#splash");
   render("tab");
-  (!S.key || S.data) && splashDone();
-  load().then(splashDone, splashDone);
-  loadWeather();
-  setTimeout(splashDone, 3e3);
+  if (splash) {
+    splash.insertAdjacentHTML("afterbegin", TOPO("splash")), S.splashHold = !0;
+    let frames = (n) => new Promise((r) => {
+      let f = () => --n ? requestAnimationFrame(f) : r();
+      requestAnimationFrame(f);
+    }), fontReady = Promise.race([Promise.all([document.fonts?.load("900 1em Archivo"), document.fonts?.ready]), new Promise((r) => setTimeout(r, 700))]), finished = !1, finish = async () => {
+      finished || (finished = !0, S.splashHold = !1, S.splashDirty && (S.splashDirty = !1, render(), await frames(2)), splash.classList.add("out"), setTimeout(() => splash.remove(), 600), waitLoad && setTimeout(() => {
+        load(), loadWeather();
+      }, 520));
+    };
+    waitLoad = !!(S.key && S.data), fontReady.then(() => frames(2)).then(() => {
+      splash.classList.add("go"), setTimeout(finish, 1500);
+    }), setTimeout(finish, 3500);
+  }
+  var waitLoad;
+  (!splash || !waitLoad) && (load(), loadWeather());
   !PREVIEW && "serviceWorker" in navigator && navigator.serviceWorker.register("sw.js").catch(() => {
   });
 })();
