@@ -164,7 +164,7 @@ function daySection(d, rows) {
         : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || 'No work')}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || 'No work')}</div>`).join('') : `<div class="dn">${S.mine ? 'Not scheduled' : 'No work scheduled'}</div>`}</section>`;
 }
 // Each job keeps one color everywhere on the calendar (bars, legend, day list). Mid tones read on light and dark.
-const PALETTE = ['#5e9474', '#5f86b0', '#c49a4a', '#b86b52', '#8a78b8', '#4f9592', '#b06a8a', '#86935a', '#7b8794'];
+const PALETTE = ['#22a861', '#2f7be0', '#eba312', '#ec5b37', '#8b5cf6', '#0ea5a5', '#e0418f', '#7fae12', '#b5793a'];
 const jobColor = id => { const ids = [...new Set((S.data?.schedule || []).filter(r => r.job).map(r => r.job))].sort(); return PALETTE[Math.max(0, ids.indexOf(id)) % PALETTE.length]; };
 function calScreen() {
   const m0 = S.month, first = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7);
@@ -212,11 +212,11 @@ function jobScreen() {
   const site = j.site || {}, wk = (S.data.schedule || []).filter(r => r.job === j.id && r.date >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4);
   const tag = (l, v) => v ? `<span class="tag${/tbd|confirm/i.test(v) ? ' tbd' : ''}">${l ? l + ' ' : ''}<b>${esc(v)}</b></span>` : '';
   const na = v => /^n\/?a\b/i.test(String(v || '').trim()) ? '' : v;
-  const step = s => `<div class="st">${s.scope ? `<div class="s">${esc(s.scope)}</div>` : ''}${s.product ? `<div class="p">${esc(s.product)}</div>` : ''}
-    <div class="tags">${tag('Color', na(s.color))}${tag('', na(s.sheen))}${s.coats ? tag('Coats', s.coats) : ''}${tag(/sf\/gal/i.test(s.sqft) ? 'Coverage' : 'Area', na(s.sqft))}${s.gallons ? tag('Qty', /\D/.test(s.gallons) ? s.gallons : s.gallons + ' gal') : ''}</div></div>`;
+  const step = s => `<${canEdit() ? `button class="st ed" data-sidx="${j.scope.indexOf(s)}"` : 'div class="st"'}>${canEdit() ? `<span class="pen">${PENCIL}</span>` : ''}${s.scope ? `<div class="s">${esc(s.scope)}</div>` : ''}${s.product ? `<div class="p">${esc(s.product)}</div>` : ''}
+    <div class="tags">${tag('Color', na(s.color))}${tag('', na(s.sheen))}${s.coats ? tag('Coats', s.coats) : ''}${tag(/sf\/gal/i.test(s.sqft) ? 'Coverage' : 'Area', na(s.sqft))}${s.gallons ? tag('Qty', /\D/.test(s.gallons) ? s.gallons : s.gallons + ' gal') : ''}</div></${canEdit() ? 'button' : 'div'}>`;
   const groups = []; for (const s of j.scope || []) { const g = groups[groups.length - 1]; if (g && g.area === s.area) g.items.push(s); else groups.push({ area: s.area, items: [s] }); }
   const spec = g => `<div class="sp"><div class="a">${esc(g.area)}</div>${g.items.map(step).join('')}</div>`;
-  $('#app').innerHTML = `<header class="band">${TOPO('job')}<div class="w jp"><button class="back" data-act="back">${L}Back</button>
+  $('#app').innerHTML = `<header class="band">${TOPO('job')}<div class="w jp"><div class="jtop"><button class="back" data-act="back">${L}Back</button>${canEdit() ? `<button class="edb" data-act="jedit">${PENCIL}Edit job</button>` : ''}</div>
     <h1>${esc(j.name)}</h1><p>${esc([j.gc && 'GC: ' + j.gc, j.type].filter(Boolean).join(' · '))}${j.status === 'In Progress' ? '<span class="pill on">In progress</span>' : ''}</p></div></header>
   <main class="w">
     <div class="card">${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
@@ -224,19 +224,19 @@ function jobScreen() {
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ''}</div>
     ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => { const d = addDays(today(), n), w = wxFor(j, d); if (!w) return '';
       return `<div class="wd"><b>${n ? fmtDay(d, { weekday: 'short' }) : 'Today'}</b>${wxIcon(w.code, 24)}<span>${w.hi}° <i>${w.lo}°</i></span><small>${w.pop}%</small></div>`; }).join('')}</div>` : ''}
-    <div class="sec">Scope &amp; products</div><div class="card">${groups.length ? groups.map(spec).join('') : '<div class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</div>'}</div>
-    <div class="sec">Site &amp; contacts</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[['Contact', site.contact], ['Phone', site.phone], ['Email', site.email], ['Access', site.access]].filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join('')}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
+    <div class="sech"><div class="sec">Scope &amp; products</div>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ''}</div><div class="card">${groups.length ? groups.map(spec).join('') : '<div class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</div>'}</div>
+    <div class="sech"><div class="sec">Site &amp; contacts</div>${canEdit() ? '<button class="addl" data-act="jedit">Edit</button>' : ''}</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[['Contact', site.contact], ['Phone', site.phone], ['Email', site.email], ['Access', site.access]].filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join('')}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map(r => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join('')}</div>` : ''}
   </main>`;
 }
 function settings() {
-  $('#sheet').innerHTML = `<div class="ov" data-act="close"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="stH"><div class="sh"><h2 id="stH">Settings</h2><button class="done" data-act="close">Done</button></div>
+  showSheet(`<div class="ov" data-act="close"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="stH"><div class="sh"><h2 id="stH">Settings</h2><button class="done" data-act="close">Done</button></div>
     <p class="empty" style="margin:0">Signed in as <b style="color:var(--ink)">${esc(S.me)}</b></p>
     <p class="empty" style="margin:4px 0 0;font-size:14px">Not you, or got a new phone? Ask Paul for your link.</p>
     <button class="btn go" data-act="refresh">Refresh schedule</button>
     ${installed() ? '' : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? '<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>' : '<li>In Chrome, tap the ⋮ menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>'}<li>Open MPNW Crew from the new icon.</li></ol>`}
-    <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? ' · schedule ' + new Date(S.data.updated).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</p></div></div>`;
+    <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? ' · schedule ' + new Date(S.data.updated).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</p></div></div>`);
 }
 
 /* ---------- weather (Open-Meteo, free, no key). Each job has geo [lat, lng] from the sheet script. ---------- */
@@ -291,7 +291,7 @@ function editor(src) {  // src: a schedule entry to edit, or { date } to add
 function drawEditor() {
   const e = S.ed, jobs = (S.data?.jobs || []), crew = S.data?.crew || [];
   const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
-  $('#sheet').innerHTML = `<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
+  showSheet(`<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
     <div class="sh"><h2 id="edH">${e.row ? 'Edit schedule' : 'Add to schedule'}</h2><button class="done" data-act="edclose">Cancel</button></div>
     ${e.row && e.thru ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: 'short', month: 'short', day: 'numeric' })} to ${fmtDay(e.thru, { weekday: 'short', month: 'short', day: 'numeric' })}. Changes apply to every day in it.</p>` : ''}
     <div class="seg2"><button data-edmode="job" aria-pressed="${!e.off}">Job</button><button data-edmode="off" aria-pressed="${e.off}">Day off</button></div>
@@ -305,7 +305,7 @@ function drawEditor() {
     ${e.err ? `<p class="ferr" role="alert">${esc(e.err)}</p>` : ''}
     <div class="btns ${e.row ? '' : 'one'}"><button class="btn go" data-act="edsave"${e.busy ? ' disabled' : ''}>${e.busy ? 'Saving…' : 'Save'}</button>${e.row ? `<button class="btn del" data-act="eddel"${e.busy ? ' disabled' : ''}>${e.del ? 'Tap again to delete' : 'Delete'}</button>` : ''}</div>
     ${e.row && e.job ? `<button class="lnk" data-job="${e.job}" data-act="edclose">Open the job page</button>` : ''}
-  </div></div>`;
+  </div></div>`);
 }
 function edCheck() {
   const e = S.ed;
@@ -325,7 +325,7 @@ async function edSave(del) {
   try {
     const res = __PREVIEW__ ? previewWrite(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'Could not save.');
-    S.ed = null; $('#sheet').innerHTML = '';
+    S.ed = null; closeSheet();
     if (__PREVIEW__) { render(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); } else { await load(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); }
   } catch (err) { e.busy = false; e.err = S.offline || !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawEditor(); }
 }
@@ -341,9 +341,122 @@ function previewWrite(b) {  // preview only: apply the change to the sample data
   return { ok: true };
 }
 
+/* ---------- editing jobs and scope (same "Can edit" people) ---------- */
+const STATUSES = ['Not Started', 'In Progress', 'Complete'];
+const JOB_FIELDS = [['name', 'Job name'], ['gc', 'GC'], ['address', 'Address', 'area'], ['type', 'Type', 'list', ['Commercial', 'Interior', 'Exterior', 'Interior + Exterior', 'Industrial']],
+  ['status', 'Status', 'select', STATUSES], ['start', 'Start date', 'date'], ['rate', 'Prevailing wage ($/hr)', 'num'], ['crewNotes', 'Notes for the crew', 'area'],
+  ['@', 'Site & contacts'], ['contact', 'Site contact', 'area'], ['phone', 'Phone', 'tel'], ['email', 'Email', 'area'], ['access', 'Site access', 'area']];
+const SCOPE_FIELDS = [['area', 'Area', 'list'], ['scope', 'Scope'], ['product', 'Product'], ['color', 'Color'], ['sheen', 'Sheen', 'list', ['Flat', 'Matte', 'Eggshell', 'Satin', 'Semi-Gloss', 'Gloss']],
+  ['coats', 'Coats', 'num'], ['sqft', 'Coverage'], ['gallons', 'Qty']];
+const nextJobId = () => { const n = (S.data?.jobs || []).map(j => +(j.id.match(/\d+/) || [0])[0]); return 'P-' + pad(Math.max(0, ...n) + 1); };
+function jobForm(j) {  // j: a job to edit, or null for a new one
+  const s = j?.site || {};
+  S.form = { kind: 'job', row: j?.row || null, expect: j ? { id: j.id } : null, del: false, busy: false, err: '',
+    v: j ? { id: j.id, name: j.name, gc: j.gc, address: j.address, type: j.type, status: j.status, start: j.start || '', rate: j.pw?.rate ?? '', crewNotes: j.crewNotes || '',
+      contact: s.contact || '', phone: s.phone || '', email: s.email || '', access: s.access || '' }
+      : { id: '', name: '', gc: '', address: '', type: '', status: 'Not Started', start: '', rate: '', crewNotes: '', contact: '', phone: '', email: '', access: '' } };
+  drawForm();
+}
+function scopeForm(j, i) {  // i: index into j.scope, or -1 for a new line
+  const s = j.scope[i] || {}, last = j.scope[j.scope.length - 1];
+  S.form = { kind: 'scope', job: j.id, row: s.row || null, expect: s.row ? { job: j.id, scope: s.scope || '', product: s.product || '' } : null, del: false, busy: false, err: '',
+    v: i >= 0 ? { area: s.area, scope: s.scope, product: s.product, color: s.color, sheen: s.sheen, coats: s.coats, sqft: s.sqft, gallons: s.gallons }
+      : { area: last?.area || '', scope: '', product: '', color: '', sheen: '', coats: '', sqft: '', gallons: '' } };
+  drawForm();
+}
+function drawForm() {
+  const f = S.form, v = f.v, job = f.kind === 'scope' && jobById(f.job), isJob = f.kind === 'job';
+  const areas = job ? [...new Set(job.scope.map(s => s.area).filter(Boolean))] : [];
+  const field = ([k, label, type, opts]) => {
+    if (k === '@') return `<div class="sec" style="margin:6px 0 -4px">${label}</div>`;
+    const val = esc(v[k] ?? ''), list = type === 'list' ? (k === 'area' ? areas : opts) : null;
+    const input = type === 'select' ? `<select data-ff="${k}">${opts.map(o => `<option${o === v[k] ? ' selected' : ''}>${o}</option>`).join('')}</select>`
+      : type === 'area' ? `<textarea data-ff="${k}" rows="2">${val}</textarea>`
+      : `<input data-ff="${k}" value="${val}" ${type === 'date' ? 'type="date"' : type === 'num' ? 'inputmode="decimal"' : type === 'tel' ? 'type="tel"' : 'type="text"'}${list ? ` list="dl-${k}"` : ''} autocomplete="off">${list ? `<datalist id="dl-${k}">${list.map(o => `<option value="${esc(o)}">`).join('')}</datalist>` : ''}`;
+    return `<label class="fl">${label}${k === 'id' ? input.replace('autocomplete="off"', `autocomplete="off" autocapitalize="characters" placeholder="e.g. ${nextJobId()}"`) : input}</label>`;
+  };
+  const pairs = isJob ? (f.row ? JOB_FIELDS : [['id', 'Job number']].concat(JOB_FIELDS)) : SCOPE_FIELDS;
+  const body = isJob ? pairs.map(field).join('') : `${field(pairs[0])}${field(pairs[1])}${field(pairs[2])}<div class="f2">${field(pairs[3])}${field(pairs[4])}</div><div class="f3">${field(pairs[5])}${field(pairs[6])}${field(pairs[7])}</div>`;
+  const title = isJob ? (f.row ? 'Edit job' : 'New job') : f.row ? 'Edit scope line' : 'Add scope line';
+  showSheet(`<div class="ov" data-act="fclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="fH">
+    <div class="sh"><h2 id="fH">${title}</h2><button class="done" data-act="fclose">Cancel</button></div>
+    ${isJob && !f.row ? '<p class="sub">Use the same job number as your company tracker.</p>' : `<p class="sub">${isJob ? `<b>${esc(v.id)}</b>` : esc(job ? job.id + ' · ' + job.name : '')}</p>`}
+    ${body}
+    ${isJob && v.status === 'Complete' ? '<p class="hint">Complete jobs drop off the crew\'s Jobs list once they\'re off the schedule.</p>' : ''}
+    ${f.err ? `<p class="ferr" role="alert">${esc(f.err)}</p>` : ''}
+    <div class="btns ${f.row && !isJob ? '' : 'one'}"><button class="btn go" data-act="fsave"${f.busy ? ' disabled' : ''}>${f.busy ? 'Saving…' : 'Save'}</button>${f.row && !isJob ? `<button class="btn del" data-act="fdel"${f.busy ? ' disabled' : ''}>${f.del ? 'Tap again to delete' : 'Delete'}</button>` : ''}</div>
+  </div></div>`);
+}
+function formCheck() {
+  const f = S.form, v = f.v;
+  if (f.kind === 'job') {
+    if (!f.row) {
+      const id = String(v.id).trim().toUpperCase(); v.id = id;
+      if (!/^[A-Z]+-\d+$/.test(id)) return 'Type the job number like it is in the tracker, for example P-21.';
+      if ((S.data?.jobs || []).some(j => j.id === id)) return id + ' is already on the Jobs tab.';
+    }
+    if (!String(v.name).trim()) return 'Give the job a name.';
+    if (v.rate !== '' && !(+v.rate >= 0)) return 'Prevailing wage should be a number, like 55.64. Leave it blank if it isn\'t prevailing wage.';
+  } else if (!String(v.scope).trim() && !String(v.product).trim()) return 'Fill in the scope or the product.';
+  return '';
+}
+async function formSave(del) {
+  const f = S.form; f.err = del ? '' : formCheck(); if (f.err) return drawForm();
+  f.busy = true; drawForm();
+  const item = Object.fromEntries(Object.entries(f.v).map(([k, x]) => [k, typeof x === 'string' ? x.trim() : x]));
+  const body = { u: S.key, action: f.kind, op: del ? 'delete' : f.row ? 'update' : 'add', row: f.row, expect: f.expect, job: f.job, item };
+  try {
+    const res = __PREVIEW__ ? previewForm(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+    if (!res.ok) throw new Error(res.error || 'Could not save.');
+    S.form = null; closeSheet();
+    if (f.kind === 'job' && !f.row) S.job = item.id;
+    if (__PREVIEW__) render(); else await load();
+    toast(del ? 'Deleted.' : 'Saved to the sheet.');
+  } catch (err) { f.busy = false; f.err = !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawForm(); }
+}
+function previewForm(b) {  // preview only: apply the change to the sample data the way the sheet script would
+  const jobs = S.data.jobs, it = b.item;
+  if (b.action === 'job') {
+    let j = jobs.find(x => x.id === (b.expect?.id || it.id));
+    if (!j) { j = { id: it.id, scope: [], row: jobs.length + 2 }; jobs.push(j); }
+    Object.assign(j, { name: it.name, gc: it.gc, address: it.address, type: it.type, status: it.status, start: it.start, crewNotes: it.crewNotes, pw: +it.rate > 0 ? { rate: +it.rate } : null,
+      site: Object.fromEntries(['contact', 'phone', 'email', 'access'].filter(k => it[k]).map(k => [k, it[k]])) });
+    return { ok: true };
+  }
+  const j = jobs.find(x => x.id === b.job), i = j.scope.findIndex(s => s.row === b.row);
+  if (b.op === 'delete') j.scope.splice(i, 1);
+  else if (i >= 0) Object.assign(j.scope[i], it);
+  else { const after = j.scope.map(s => s.area).lastIndexOf(it.area); j.scope.splice(after < 0 ? j.scope.length : after + 1, 0, { ...it, row: 900 + Math.round(Math.random() * 99) }); }
+  return { ok: true };
+}
+
 /* ---------- render & events ---------- */
 /* ---------- motion: the header map drifts slower than the page, and cards rise into place as they scroll into view ---------- */
 const motionOK = matchMedia('(prefers-reduced-motion: no-preference)');
+/* Pop-up sheets slide up when they open and down when they close. Redrawing an open sheet (typing, toggles) doesn't replay it. */
+let sheetT = 0;
+function showSheet(html) {
+  clearTimeout(sheetT); const box = $('#sheet'), fresh = !box.firstChild || box.querySelector('.ov.out');
+  box.innerHTML = html; document.documentElement.classList.add('locked');
+  if (fresh && motionOK.matches) box.querySelector('.ov').classList.add('anim');
+}
+function closeSheet() {
+  const box = $('#sheet'), ov = box.querySelector('.ov'); document.documentElement.classList.remove('locked');
+  if (!ov || !motionOK.matches) { box.innerHTML = ''; return; }
+  ov.classList.remove('anim'); ov.classList.add('out'); clearTimeout(sheetT); sheetT = setTimeout(() => { box.innerHTML = ''; }, 220);
+}
+/* Press feedback: buttons sink a moment after the finger lands, and not at all if the finger is starting a scroll. */
+const PRESS = 'button, a.btn, .ov .pick button, label.ck';
+let pressEl = null, pressT = 0, pressXY = null;
+const unpress = () => { clearTimeout(pressT); pressEl?.classList.remove('press'); pressEl = null; };
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button) return; unpress();
+  const el = e.target.closest(PRESS); if (!el || el.disabled) return;
+  pressEl = el; pressXY = [e.clientX, e.clientY]; pressT = setTimeout(() => el.classList.add('press'), e.pointerType === 'touch' ? 45 : 0);
+}, { passive: true });
+document.addEventListener('pointermove', e => { if (pressEl && Math.hypot(e.clientX - pressXY[0], e.clientY - pressXY[1]) > 8) unpress(); }, { passive: true });
+['pointerup', 'pointercancel', 'dragstart'].forEach(t => document.addEventListener(t, () => setTimeout(unpress, 90), { passive: true }));
+addEventListener('scroll', unpress, { passive: true });
 let io = null, rafId = 0;
 function parallax() {
   rafId = 0; const band = document.querySelector('.band'); if (!band) return;
@@ -376,11 +489,12 @@ function motion() {
 // nav: 'push' (open a job), 'pop' (back), 'tab', 'next' / 'prev' (week or month arrows). Animates the new page in.
 let navT = 0;
 function render(nav) {
-  render2(); $('#app').classList.remove('has-fab');
-  if (canEdit() && S.me && !S.job && ['today', 'week', 'cal'].includes(S.tab)) $('#app').classList.add('has-fab'), $('#app').insertAdjacentHTML('beforeend', `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
+  render2(); const fab = canEdit() && S.me && !S.job && ['today', 'week', 'cal', 'jobs'].includes(S.tab);
+  if (canEdit() && S.me && !S.job && ['today', 'week', 'cal', 'jobs'].includes(S.tab)) $('#app').insertAdjacentHTML('beforeend', S.tab === 'jobs' ? `<button class="fab" data-act="jnew">${PLUS}New job</button>` : `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
   const a = $('#app'); a.className = '';
-  if (nav && motionOK.matches) { void a.offsetWidth; a.className = 'nv-' + nav; clearTimeout(navT); navT = setTimeout(() => { a.className = ''; }, 480); }
-  motion();
+  if (fab) a.classList.add('has-fab');
+  if (nav && motionOK.matches) { void a.offsetWidth; a.classList.add('nv-' + nav); clearTimeout(navT); navT = setTimeout(() => { a.classList.remove('nv-' + nav); }, 420); }
+  if (nav) motion(); else { io?.disconnect(); parallax(); }
 }
 // Opening a job adds a history step, so the phone's own back button or swipe closes it.
 function openJob(id) { S.listY = scrollY; S.job = id; history.pushState({ job: id }, ''); scrollTo(0, 0); render('push'); }
@@ -395,7 +509,9 @@ function render2() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button, .ov'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('ov') && e.target !== b) return;
-  if (d.act === 'edclose') { S.ed = null; $('#sheet').innerHTML = ''; if (!d.job) return; }
+  if (d.act === 'fclose') { S.form = null; closeSheet(); return; }
+  if (d.sidx !== undefined) return scopeForm(jobById(S.job), +d.sidx);
+  if (d.act === 'edclose') { S.ed = null; closeSheet(); if (!d.job) return; }
   if (d.edrow) return editor(JSON.parse(d.edrow));
   if (d.edmode) { S.ed.off = d.edmode === 'off'; S.ed.err = ''; return drawEditor(); }
   if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
@@ -411,10 +527,15 @@ document.addEventListener('click', e => {
     S.sel = S.month.slice(0, 7) === today().slice(0, 7) ? today() : S.month; render(act === 'mprev' ? 'prev' : act === 'mnext' ? 'next' : 'tab'); }
   else if (act === 'edadd') editor({ date: S.tab === 'cal' ? S.sel : S.tab === 'week' && S.week > today() ? S.week : today() });
   else if (act === 'edsave') edSave(false);
+  else if (act === 'jedit') jobForm(jobById(S.job));
+  else if (act === 'jnew') jobForm(null);
+  else if (act === 'sadd') scopeForm(jobById(S.job), -1);
+  else if (act === 'fsave') formSave(false);
+  else if (act === 'fdel') { if (S.form.del) formSave(true); else { S.form.del = true; drawForm(); } }
   else if (act === 'eddel') { if (S.ed.del) edSave(true); else { S.ed.del = true; drawEditor(); } }
   else if (act === 'settings') settings();
-  else if (act === 'close') $('#sheet').innerHTML = '';
-  else if (act === 'refresh') { $('#sheet').innerHTML = ''; load(true); }
+  else if (act === 'close') closeSheet();
+  else if (act === 'refresh') { closeSheet(); load(true); }
 });
 let toastT = 0;
 function toast(msg) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
@@ -425,19 +546,26 @@ const edField = e => { const el = e.target.closest('[data-f]'); if (!el || !S.ed
   if (f === 'multi') { S.ed.multi = el.checked; if (S.ed.multi && !S.ed.thru) S.ed.thru = addDays(S.ed.from, 4); return drawEditor(); }
   S.ed[f] = el.value; S.ed.del = false; if (S.ed.err) { S.ed.err = ''; } };
 document.addEventListener('input', edField); document.addEventListener('change', edField);
+const fField = e => { const el = e.target.closest('[data-ff]'); if (!el || !S.form) return; S.form.v[el.dataset.ff] = el.value; S.form.del = false;
+  if (el.dataset.ff === 'status') drawForm(); };
+document.addEventListener('input', fField); document.addEventListener('change', fField);
 /* ---------- pull to refresh (touch phones) ---------- */
 const MTN = I('<path d="M3 19L9.5 8l3.5 5.5L15.5 10 21 19z"/>', 22);
 document.body.insertAdjacentHTML('beforeend', `<div id="ptr" aria-hidden="true"><div class="pi"><i class="arc"></i>${MTN}</div></div>`);
 document.addEventListener('touchstart', () => {}, { passive: true }); // lets :active press feedback work on iPhone
 let pull = null;
 const ptr = $('#ptr'), ptrAt = (px, rot) => { ptr.style.transform = `translate3d(-50%,${px}px,0)`; ptr.querySelector('.arc').style.transform = `rotate(${rot}deg)`; };
-document.addEventListener('touchstart', e => { if (scrollY <= 0 && S.me && !$('#sheet').innerHTML && !ptr.classList.contains('spin')) pull = { y: e.touches[0].clientY, d: 0 }; }, { passive: true });
-document.addEventListener('touchmove', e => {
+// The scroll-blocking listener is only attached while a pull might be starting (finger down at the very top),
+// so normal scrolling never waits on it.
+document.addEventListener('touchstart', e => { if (scrollY <= 0 && S.me && !$('#sheet').firstChild && !ptr.classList.contains('spin')) { pull = { y: e.touches[0].clientY, d: 0 }; document.addEventListener('touchmove', onPull, { passive: false }); } }, { passive: true });
+function onPull(e) {
   if (!pull) return; const dy = e.touches[0].clientY - pull.y;
-  if (dy <= 0 || scrollY > 0) { if (pull.d) ptrAt(-70, 0); pull.d = 0; return; }
-  e.preventDefault(); pull.d = Math.min(120, dy * .5); ptr.classList.add('drag'); ptr.classList.toggle('ready', pull.d >= 64); ptrAt(pull.d - 64, pull.d * 3);
-}, { passive: false });
+  if (dy <= 0 || scrollY > 0) { if (pull.d) { ptrAt(-70, 0); pull.d = 0; return; } pull = null; document.removeEventListener('touchmove', onPull, { passive: false }); return; }
+  e.preventDefault(); const was = pull.d >= 64; pull.d = Math.min(120, dy * .5); ptr.classList.add('drag'); ptr.classList.toggle('ready', pull.d >= 64); ptrAt(pull.d - 64, pull.d * 3);
+  if (!was && pull.d >= 64) navigator.vibrate?.(8);  // a light tick on Android when it's far enough
+}
 document.addEventListener('touchend', async () => {
+  document.removeEventListener('touchmove', onPull, { passive: false });
   if (!pull) return; const go = pull.d >= 64; pull = null; ptr.classList.remove('drag', 'ready');
   if (!go) return ptrAt(-70, 0);
   ptr.classList.add('spin'); ptrAt(14, 0);
