@@ -6,7 +6,8 @@
  * job info for whoever owns that code. A wrong or deleted code gets nothing.
  *
  * Tabs it reads (row 1 = headers, any column order):
- *   Crew      Name | Role | Link code | Personal link | Active
+ *   Crew      Name | Role | Link code | Personal link | Active | Can edit
+ *             People with Can edit ticked can add, change and delete schedule rows from the app.
  *   Jobs      Job ID | Job name | GC | Address | Type | Status | Start date | Prevailing wage ($/hr) |
  *             Crew notes | Site contact | Phone | Email | Site access
  *   Scope     Job ID | Area | Scope | Product | Color | Sheen | Coats | Coverage | Qty
@@ -16,6 +17,11 @@
  *             (a row with no job and a note, like "Thanksgiving, shop closed").
  * Job cells can be "P-03" or the picker's "P-03 · Cape Disappointment ...": only the ID is used.
  * Start here, Lists and Inbox are for people, not the app.
+ *
+ * Saving from the app: the app POSTs {u, action: add|update|delete, row, expect, item}. Only people
+ * with Can edit get through, and an update or delete only happens if that row still holds the date
+ * and job the app saw (so a sort or someone else's edit can't send it to the wrong row).
+ * Job addresses are looked up once (Google Maps) so the app can show the forecast for each site.
  */
 
 var CACHE_SECONDS = 60;
@@ -28,10 +34,99 @@ function doGet(e) {
     var data = shared_();
     var me = data.codes[code];
     if (me) {
-      out = { me: me, updated: data.updated, crew: data.crew, jobs: data.jobs, schedule: data.schedule };
+      out = { me: me, canEdit: !!data.editors[me], updated: data.updated, crew: data.crew, jobs: data.jobs, schedule: data.schedule };
     }
   }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var res;
+  try { res = save_(JSON.parse((e && e.postData && e.postData.contents) || '{}')); }
+  catch (err) { res = { ok: false, error: 'Could not save. Try again.' }; }
+  return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function save_(b) {
+  var ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone();
+  var data = build_(), me = data.codes[String(b.u || '').trim().toLowerCase()];
+  if (!me) return { ok: false, error: 'This link no longer works.' };
+  if (!data.editors[me]) return { ok: false, error: 'Only people with Can edit on the Crew tab can change the schedule.' };
+  var act = b.action, it = b.item || {}, isDay = /^\d{4}-\d{2}-\d{2}$/;
+  if (['add', 'update', 'delete'].indexOf(act) < 0) return { ok: false, error: 'Unknown change.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { ok: false, error: 'Someone else is saving. Try again in a moment.' };
+  try {
+    var sh = ss.getSheetByName('Schedule');
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var col = function (h) { return head.indexOf(h); };
+    var day = function (v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd') : String(v || '').trim().slice(0, 10); };
+    var jobId = function (v) { var m = String(v || '').match(/[A-Za-z]+-\d+/); return m ? m[0].toUpperCase() : ''; };
+    var row = Number(b.row);
+    if (act !== 'add') {
+      if (!(row >= 2 && row <= sh.getLastRow())) return { ok: false, error: 'That row is gone. Pull down to refresh.' };
+      var cur = sh.getRange(row, 1, 1, head.length).getValues()[0], ex = b.expect || {};
+      if (day(cur[col('date')]) !== ex.date || jobId(cur[col('job')]) !== (ex.job || ''))
+        return { ok: false, error: 'The schedule changed while you were editing. Pull down to refresh and try again.' };
+    }
+    var who = me.split(' ')[0], stamp = Utilities.formatDate(new Date(), tz, 'M/d h:mm a');
+    if (act === 'delete') { sh.deleteRow(row); onEdit(); return { ok: true }; }
+
+    // Check what the app sent before anything touches the sheet.
+    if (!isDay.test(it.date || '')) return { ok: false, error: 'Pick a date.' };
+    var job = null;
+    if (it.job) { job = data.jobs.filter(function (j) { return j.id === it.job; })[0]; if (!job) return { ok: false, error: 'That job is not on the Jobs tab.' }; }
+    var notes = String(it.notes || '').slice(0, 500).trim();
+    if (!job && !notes) return { ok: false, error: 'Add a reason for the day off.' };
+    var thru = job && isDay.test(it.thru || '') && it.thru > it.date ? it.thru : '';
+    var names = data.crew.map(function (c) { return c.name; });
+    var crew = (it.crew || []).filter(function (n) { return names.indexOf(n) >= 0; });
+    if (job && !crew.length) return { ok: false, error: 'Tick at least one person.' };
+    var start = job ? time_(it.start) : '';
+
+    var vals = (act === 'update' ? sh.getRange(row, 1, 1, head.length).getValues()[0] : head.map(function () { return ''; })).slice();
+    var put = function (h, v) { if (col(h) >= 0) vals[col(h)] = v; };
+    var dateOf = function (k) { return new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); };
+    put('date', dateOf(it.date));
+    put('through', thru ? dateOf(thru) : '');
+    put('job', job ? job.id + ' · ' + job.name : '');
+    put('start', start ? label12_(start) : '');
+    put('notes', notes);
+    data.crew.forEach(function (c) {  // checkbox columns headed with first or full name
+      var i = col(c.name.toLowerCase()); if (i < 0) i = col(c.name.split(' ')[0].toLowerCase());
+      if (i >= 0) vals[i] = !!job && crew.indexOf(c.name) >= 0;
+    });
+    if (col('crew') >= 0) vals[col('crew')] = job ? crew.join(', ') : '';
+    if (act === 'add') { row = sh.getLastRow() + 1; }
+    var range = sh.getRange(row, 1, 1, head.length);
+    range.setValues([vals]);
+    if (col('date') >= 0) sh.getRange(row, col('date') + 1).setNote((act === 'add' ? 'Added' : 'Changed') + ' in the app by ' + who + ', ' + stamp);
+    sortSchedule();
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+/* "07:30" -> "7:30 AM", matching the Start dropdown */
+function label12_(t) {
+  var h = Number(t.slice(0, 2)), m = t.slice(3, 5);
+  return ((h % 12) || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+
+/* Latitude/longitude for a job address, looked up once and kept in the script's settings. */
+function geo_(address, budget) {
+  if (!address) return null;
+  var props = PropertiesService.getScriptProperties(), key = 'geo|' + address.toLowerCase().slice(0, 200);
+  var hit = props.getProperty(key);
+  if (hit === null) {
+    if (budget.left-- <= 0) return null;
+    hit = 'none';
+    try {
+      var r = Maps.newGeocoder().setRegion('us').geocode(address);
+      if (r && r.status === 'OK' && r.results.length) { var l = r.results[0].geometry.location; hit = l.lat.toFixed(3) + ',' + l.lng.toFixed(3); }
+      props.setProperty(key, hit);
+    } catch (err) { return null; }  // try again next time
+  }
+  return hit === 'none' ? null : hit.split(',').map(Number);
 }
 
 /* Edits made in the sheet reach phones within a minute. */
@@ -130,11 +225,12 @@ function build_() {
   };
 
   // Crew: active people with a name. Codes stay on the server.
-  var codes = {}, crew = [];
+  var codes = {}, crew = [], editors = {};
   rows_(ss, 'Crew').forEach(function (r) {
     var name = txt_(r, 'name');
     if (!name || !isTrue_(r.active)) return;
     crew.push({ name: name, role: txt_(r, 'role') });
+    if (isTrue_(r['can edit'])) editors[name] = true;
     var code = txt_(r, 'link code').toLowerCase();
     if (code) codes[code] = name;
   });
@@ -173,7 +269,8 @@ function build_() {
     var dates = job && thru > d ? days(d, thru).filter(function (k) { return !off[k]; }) : [d];
     dates.forEach(function (k) {
       if (k < from || k > to) return;
-      schedule.push({ date: k, job: job, crew: job ? people : [], start: job ? time_(r._shown.start) : '', notes: notes });
+      schedule.push({ date: k, job: job, crew: job ? people : [], start: job ? time_(r._shown.start) : '', notes: notes,
+                      row: r._row, from: d, thru: job && thru > d ? thru : '' });
     });
   });
   schedule.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
@@ -192,7 +289,7 @@ function build_() {
   });
 
   // Jobs: everything not finished, plus any finished job still on the schedule.
-  var jobs = [];
+  var jobs = [], budget = { left: 8 };  // at most 8 new address lookups per refresh
   rows_(ss, 'Jobs').forEach(function (r) {
     var id = txt_(r, 'job id').toUpperCase(), name = txt_(r, 'job name');
     if (!id || !name) return;
@@ -206,11 +303,11 @@ function build_() {
     });
     jobs.push({ id: id, name: name, gc: txt_(r, 'gc'), address: txt_(r, 'address'), type: txt_(r, 'type'), status: status || 'Not Started',
                 start: day(r['start date']), pw: rate > 0 ? { rate: Math.round(rate * 100) / 100 } : null,
-                crewNotes: txt_(r, 'crew notes'), site: site, scope: scope[id] || [] });
+                crewNotes: txt_(r, 'crew notes'), site: site, scope: scope[id] || [], geo: geo_(txt_(r, 'address'), budget) });
   });
 
   var updated = PropertiesService.getScriptProperties().getProperty('updated');
-  return { codes: codes, crew: crew, jobs: jobs, schedule: schedule, updated: updated || null };
+  return { codes: codes, editors: editors, crew: crew, jobs: jobs, schedule: schedule, updated: updated || null };
 }
 
 /* Rows as objects keyed by lowercase header. r._shown holds what the cell displays (used for times). */
@@ -220,7 +317,7 @@ function rows_(ss, name) {
   var range = sh.getDataRange(), v = range.getValues(), shown = range.getDisplayValues();
   var head = v[0].map(function (h) { return String(h).trim().toLowerCase(); });
   return v.slice(1).map(function (row, i) {
-    var o = { _shown: {} };
+    var o = { _shown: {}, _row: i + 2 };
     head.forEach(function (h, j) { if (h) { o[h] = row[j]; o._shown[h] = shown[i + 1][j]; } });
     return o;
   });
