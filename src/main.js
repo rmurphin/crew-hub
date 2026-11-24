@@ -46,7 +46,7 @@ const MARKS = [
   { n: 'VANCOUVER', x: -36, y: -62, town: true }, { n: 'PORTLAND', x: -40, y: -77, town: true }, { n: 'COLUMBIA RIVER', x: 2, y: -71.5, river: true }];
 // Where Mt St Helens lands in each header, chosen so labels sit in open space beside the header's own text and buttons.
 // Short headers only label the two peaks; the full map (river, towns, Rainier, Hood) shows on the sign-in screen.
-const SPOTS = { today: { x: '55%', y: 100, k: 2.6, few: 1 }, bar: { x: '40%', y: 30, k: 2.6, adams: 'b', few: 1 }, job: { x: '47%', y: 24, k: 2.6, adams: 'b', few: 1 }, link: { x: '47%', y: () => Math.round(Math.max(510, innerHeight * .64)), k: 2.6 } };
+const SPOTS = { today: { x: '55%', y: 100, k: 2.6, few: 1 }, bar: { x: '40%', y: 30, k: 2.6, adams: 'b', few: 1 }, job: { x: '47%', y: 24, k: 2.6, adams: 'b', few: 1 }, splash: { x: '50%', y: () => Math.round(innerHeight * .5), k: 2.6, few: 1 }, link: { x: '47%', y: () => Math.round(Math.max(510, innerHeight * .64)), k: 2.6 } };
 const TOPO = spot => {
   const { x, k, adams = 'a', few } = SPOTS[spot], y = typeof SPOTS[spot].y === 'function' ? SPOTS[spot].y() : SPOTS[spot].y, G = '#9cc4a8', W = '#eef2ee';
   const t = (px, py, txt, size, wt, fill, op, end, more = '') => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ''}${more}>${txt}</text>`;
@@ -651,6 +651,7 @@ document.addEventListener('touchend', async () => {
 /* Opening animation: it plays for at least ~1.4s, then lifts away as soon as the app has something to show,
    and the cards slide in underneath. Never holds the app longer than 3s. */
 const splashT0 = performance.now();
+$('#splash')?.insertAdjacentHTML('afterbegin', TOPO('splash'));
 function splashDone() {
   const el = $('#splash'); if (!el || el.dataset.going) return; el.dataset.going = 1;
   setTimeout(() => { el.classList.add('out'); if (S.me && S.data) render('tab'); setTimeout(() => el.remove(), 650); }, Math.max(0, 1900 - (performance.now() - splashT0)));
