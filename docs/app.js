@@ -40,7 +40,7 @@
     { n: "VANCOUVER", x: -36, y: -62, town: !0 },
     { n: "PORTLAND", x: -40, y: -77, town: !0 },
     { n: "COLUMBIA RIVER", x: 2, y: -71.5, river: !0 }
-  ], SPOTS = { today: { x: "55%", y: 100, k: 2.6, few: 1 }, bar: { x: "40%", y: 30, k: 2.6, adams: "b", few: 1 }, job: { x: "47%", y: 24, k: 2.6, adams: "b", few: 1 }, link: { x: "47%", y: () => Math.round(Math.max(510, innerHeight * 0.64)), k: 2.6 } }, TOPO = (spot) => {
+  ], SPOTS = { today: { x: "55%", y: 100, k: 2.6, few: 1 }, bar: { x: "40%", y: 30, k: 2.6, adams: "b", few: 1 }, job: { x: "47%", y: 24, k: 2.6, adams: "b", few: 1 }, splash: { x: "50%", y: () => Math.round(innerHeight * 0.5), k: 2.6, few: 1 }, link: { x: "47%", y: () => Math.round(Math.max(510, innerHeight * 0.64)), k: 2.6 } }, TOPO = (spot) => {
     let { x, k, adams = "a", few } = SPOTS[spot], y = typeof SPOTS[spot].y == "function" ? SPOTS[spot].y() : SPOTS[spot].y, G = "#9cc4a8", W = "#eef2ee", t = (px, py, txt, size, wt, fill, op, end, more = "") => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ""}${more}>${txt}</text>`, marks = MARKS.filter((m) => !few || m.main || m.side).map((m) => {
       let px = m.x * k, py = -m.y * k;
       if (m.town) return `<circle cx="${px}" cy="${py}" r="2.2" fill="${W}" opacity=".5"/>` + t(px + 5, py + 3.5, m.n, 9, 700, W, 0.5);
@@ -644,6 +644,7 @@
     ptr.classList.add("spin"), ptrAt(14, 0), await Promise.all([load(!0), new Promise((r) => setTimeout(r, 700))]), ptr.classList.remove("spin"), ptrAt(-70, 0);
   });
   var splashT0 = performance.now();
+  $("#splash")?.insertAdjacentHTML("afterbegin", TOPO("splash"));
   function splashDone() {
     let el = $("#splash");
     !el || el.dataset.going || (el.dataset.going = 1, setTimeout(() => {
