@@ -561,6 +561,7 @@ function motion() {
 // nav: 'push' (open a job), 'pop' (back), 'tab', 'next' / 'prev' (week or month arrows). Animates the new page in.
 let navT = 0;
 function render(nav) {
+  if (S.splashHold) { S.splashDirty = true; return; }  // no redraws while the opening animation plays
   render2(); const fab = canEdit() && S.me && !S.job && ['today', 'week', 'cal', 'jobs'].includes(S.tab);
   if (canEdit() && S.me && !S.job && ['today', 'week', 'cal', 'jobs'].includes(S.tab)) $('#app').insertAdjacentHTML('beforeend', S.tab === 'jobs' ? `<button class="fab" data-act="jnew">${PLUS}New job</button>` : `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
   const a = $('#app'); a.className = '';
@@ -648,15 +649,28 @@ document.addEventListener('touchend', async () => {
   await Promise.all([load(true), new Promise(r => setTimeout(r, 700))]);
   ptr.classList.remove('spin'); ptrAt(-70, 0);
 });
-/* Opening animation: it plays for at least ~1.4s, then lifts away as soon as the app has something to show,
-   and the cards slide in underneath. Never holds the app longer than 3s. */
-const splashT0 = performance.now();
-$('#splash')?.insertAdjacentHTML('afterbegin', TOPO('splash'));
-function splashDone() {
-  const el = $('#splash'); if (!el || el.dataset.going) return; el.dataset.going = 1;
-  setTimeout(() => { el.classList.add('out'); if (S.me && S.data) render('tab'); setTimeout(() => el.remove(), 650); }, Math.max(0, 1900 - (performance.now() - splashT0)));
-}
+/* Opening animation. The app's first screen is built and the logo font loaded while the screen is still plain dark,
+   then the logo fades up with nothing else running. Schedule and weather updates that arrive meanwhile are held and
+   drawn once, behind the finished logo, before it fades away. */
+const splash = $('#splash');
 render('tab');
-if (!S.key || S.data) splashDone();
-load().then(splashDone, splashDone); loadWeather(); setTimeout(splashDone, 3000);
+if (splash) {
+  splash.insertAdjacentHTML('afterbegin', TOPO('splash'));
+  S.splashHold = true;
+  const frames = n => new Promise(r => { const f = () => (--n ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
+  const fontReady = Promise.race([Promise.all([document.fonts?.load('900 1em Archivo'), document.fonts?.ready]), new Promise(r => setTimeout(r, 700))]);
+  let finished = false;
+  const finish = async () => {
+    if (finished) return; finished = true;
+    S.splashHold = false;
+    if (S.splashDirty) { S.splashDirty = false; render(); await frames(2); }
+    splash.classList.add('out'); setTimeout(() => splash.remove(), 600);
+    if (waitLoad) setTimeout(() => { load(); loadWeather(); }, 520);  // fresh data once the logo has faded
+  };
+  // With a saved schedule on the phone, the app is already showing it, so checking for updates can wait 2 seconds.
+  var waitLoad = !!(S.key && S.data);
+  fontReady.then(() => frames(2)).then(() => { splash.classList.add('go'); setTimeout(finish, 1500); });
+  setTimeout(finish, 3500);  // never hold the app longer than this
+}
+if (!splash || !waitLoad) { load(); loadWeather(); }
 if (!PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
