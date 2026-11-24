@@ -108,7 +108,10 @@ const usd = n => '$' + Number(n).toFixed(2);
 const DOLLAR = I('<path d="M12 3v18M16.5 7.5c-.8-1.3-2.4-2-4.5-2-2.6 0-4.2 1.3-4.2 3.1 0 4.5 9 2.3 9 6.8 0 1.9-1.8 3.2-4.6 3.2-2.3 0-4-.8-4.9-2.3"/>', 18);
 const pwStrip = j => j?.pw ? `<div class="pw">${DOLLAR}<span class="pwk">Prevailing wage</span><b>${usd(j.pw.rate)}<small>/hr</small></b></div>` : '';
 const pwPill = j => j?.pw ? '<span class="pill pwp">PW</span>' : '';
-const crewChips = (names, skipMe) => names.filter(n => !(skipMe && n === S.me)).map(n => `<span class="chip${n === S.me ? ' me' : ''}">${esc(first(n))}</span>`).join('');
+// Each person gets a small initial badge in a steady color of their own.
+const AV = ['#4f7f68', '#5b7fa8', '#a8834a', '#9a6a5a', '#7a6fa6', '#4f8a87', '#8c6a86', '#6f7f4f'];
+const avColor = n => AV[[...String(n)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % AV.length];
+const crewChips = (names, skipMe) => names.filter(n => !(skipMe && n === S.me)).map(n => `<span class="chip${n === S.me ? ' me' : ''}"><i class="av" style="background:${avColor(n)}">${esc(first(n)[0] || '')}</i>${esc(first(n))}</span>`).join('');
 const updated = () => {
   if (!S.data?.updated) return '';
   const d = new Date(S.data.updated), t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -119,8 +122,8 @@ function assignCard(r, label, small) {
   const j = jobById(r.job);
   if (!j) return `<div class="card${small ? ' sm' : ' hero'}"><div class="kick">${label}</div><div class="jn">No work</div>${r.notes ? `<div class="meta">${esc(r.notes)}</div>` : ''}</div>`;
   const others = r.crew.filter(n => n !== S.me);
-  return `<div class="card${small ? ' sm' : ' hero'}${S.changed.has(r.date) ? ' chg' : ''}" data-date="${r.date}">
-    <div class="kick">${label}${S.changed.has(r.date) ? '<strong class="ctag">Updated</strong>' : ''}<span class="time">${time12(r.start)}</span></div>
+  return `<div class="card${small ? ' sm' : ' hero'}${!small && r.date === today() ? ' live' : ''}${S.changed.has(r.date) ? ' chg' : ''}" data-date="${r.date}">
+    <div class="kick">${label}${S.changed.has(r.date) ? '<strong class="ctag">Updated</strong>' : ''}<span class="time">${time12(r.start).replace(/ (AM|PM)$/, '<small>$1</small>')}</span></div>
     <div class="jn">${esc(j.name)}</div>
     <div class="meta">${esc(j.gc ? 'GC: ' + j.gc : '')}</div>
     ${j.address ? `<div class="addr">${PIN}<span>${esc(j.address)}</span></div>` : ''}
@@ -572,7 +575,7 @@ addEventListener('popstate', () => { if (S.skipPop) { S.skipPop = false; return;
 function render2() {
   if (!S.key || S.bad || !S.me || !S.data) return linkScreen();
   $('#tabs').hidden = false;
-  document.querySelectorAll('#tabs button').forEach(b => b.toggleAttribute('aria-current', false) || (b.dataset.tab === S.tab && b.setAttribute('aria-current', 'page')));
+  document.querySelectorAll('#tabs button').forEach((b, i) => { b.toggleAttribute('aria-current', false); if (b.dataset.tab === S.tab) { b.setAttribute('aria-current', 'page'); $('#tabs').style.setProperty('--ti', i); } });
   if (S.job) jobScreen(); else if (S.tab === 'week') weekScreen(); else if (S.tab === 'jobs') jobsScreen(); else if (S.tab === 'cal') calScreen(); else todayScreen();
 }
 document.addEventListener('click', e => {
@@ -645,5 +648,14 @@ document.addEventListener('touchend', async () => {
   await Promise.all([load(true), new Promise(r => setTimeout(r, 700))]);
   ptr.classList.remove('spin'); ptrAt(-70, 0);
 });
-render('tab'); load(); loadWeather();
+/* Opening animation: it plays for at least ~1.4s, then lifts away as soon as the app has something to show,
+   and the cards slide in underneath. Never holds the app longer than 3s. */
+const splashT0 = performance.now();
+function splashDone() {
+  const el = $('#splash'); if (!el || el.dataset.going) return; el.dataset.going = 1;
+  setTimeout(() => { el.classList.add('out'); if (S.me && S.data) render('tab'); setTimeout(() => el.remove(), 650); }, Math.max(0, 1900 - (performance.now() - splashT0)));
+}
+render('tab');
+if (!S.key || S.data) splashDone();
+load().then(splashDone, splashDone); loadWeather(); setTimeout(splashDone, 3000);
 if (!PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
