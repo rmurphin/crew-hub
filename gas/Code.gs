@@ -10,8 +10,10 @@
  *   Jobs      Job ID | Job name | GC | Address | Type | Status | Start date | Prevailing wage ($/hr) |
  *             Crew notes | Site contact | Phone | Email | Site access
  *   Scope     Job ID | Area | Scope | Product | Color | Sheen | Coats | Coverage | Qty
- *   Schedule  Date | Job | Start | one checkbox column per person, headed with their first name | Notes
+ *   Schedule  Date | Through (optional last day) | Job | Start | one checkbox column per person, headed with their first name | Notes
  *             (a typed "Crew" column of names also still works)
+ *             A row with Through covers every Mon-Fri from Date to Through, except days marked off
+ *             (a row with no job and a note, like "Thanksgiving, shop closed").
  * Job cells can be "P-03" or the picker's "P-03 · Cape Disappointment ...": only the ID is used.
  * Start here, Lists and Inbox are for people, not the app.
  */
@@ -58,14 +60,14 @@ function copyDayForward() {
     return;
   }
   var v = sh.getDataRange().getValues(), head = v[0].map(function (h) { return String(h).trim().toLowerCase(); });
-  var di = head.indexOf('date'), ni = head.indexOf('notes');
+  var di = head.indexOf('date'), ni = head.indexOf('notes'), ti = head.indexOf('through');
   var from = v[cell.getRow() - 1][di];
   if (!(from instanceof Date)) { ui.alert('That row has no date yet.'); return; }
   var key = function (d) { return d instanceof Date ? d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() : ''; };
   var to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
   while (to.getDay() === 0 || to.getDay() === 6) to.setDate(to.getDate() + 1);
   var rows = v.slice(1).filter(function (r) { return key(r[di]) === key(from); }).map(function (r) {
-    var c = r.slice(); c[di] = to; if (ni >= 0) c[ni] = ''; return c;
+    var c = r.slice(); c[di] = to; if (ni >= 0) c[ni] = ''; if (ti >= 0) c[ti] = ''; return c;
   });
   var already = v.slice(1).some(function (r) { return key(r[di]) === key(to); });
   var label = Utilities.formatDate(to, ss.getSpreadsheetTimeZone(), 'EEE M/d');
@@ -77,7 +79,10 @@ function copyDayForward() {
 
 function sortSchedule() {
   var sh = SpreadsheetApp.getActive().getSheetByName('Schedule');
-  if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).sort([{ column: 1, ascending: true }, { column: 3, ascending: true }]);
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var by = [{ column: head.indexOf('date') + 1, ascending: true }];
+  if (head.indexOf('start') >= 0) by.push({ column: head.indexOf('start') + 1, ascending: true });
+  if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).sort(by);
   onEdit();
 }
 
@@ -150,15 +155,26 @@ function build_() {
 
   // Schedule: from two months back to six months out.
   var today = new Date(), from = day(new Date(today.getTime() - 60 * 864e5)), to = day(new Date(today.getTime() + 183 * 864e5));
-  var schedule = [];
-  rows_(ss, 'Schedule').forEach(function (r) {
+  var schedule = [], rows = rows_(ss, 'Schedule'), off = {};
+  var jobOf = function (r) { return jobId(r.job !== undefined ? r.job : r['job id']); };
+  rows.forEach(function (r) { var d = day(r.date); if (d && !jobOf(r) && txt_(r, 'notes')) off[d] = true; });
+  var days = function (a, b) {  // Mon-Fri keys from a to b, at most 6 months
+    var out = [], t = Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10)), end = Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10));
+    for (var n = 0; t <= end && n < 190; t += 864e5, n++) { var w = new Date(t).getUTCDay(); if (w !== 0 && w !== 6) out.push(new Date(t).toISOString().slice(0, 10)); }
+    return out;
+  };
+  rows.forEach(function (r) {
     var d = day(r.date);
-    if (!d || d < from || d > to) return;
-    var job = jobId(r.job !== undefined ? r.job : r['job id']), notes = txt_(r, 'notes');
+    if (!d) return;
+    var job = jobOf(r), notes = txt_(r, 'notes'), thru = day(r.through);
     if (!job && !notes) return;
     var people = checked(r);
     who(r.crew).forEach(function (n) { if (people.indexOf(n) < 0) people.push(n); });
-    schedule.push({ date: d, job: job, crew: job ? people : [], start: job ? time_(r._shown.start) : '', notes: notes });
+    var dates = job && thru > d ? days(d, thru).filter(function (k) { return !off[k]; }) : [d];
+    dates.forEach(function (k) {
+      if (k < from || k > to) return;
+      schedule.push({ date: k, job: job, crew: job ? people : [], start: job ? time_(r._shown.start) : '', notes: notes });
+    });
   });
   schedule.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   var onSchedule = {};
