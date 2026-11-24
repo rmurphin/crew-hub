@@ -122,6 +122,7 @@
     <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: "long", month: "long", day: "numeric" })}</p>${updated()}</div></div></header>
   <main class="w lift">
     ${evening ? tmrRows.map((r) => assignCard(r, "Tomorrow \xB7 " + tmrLabel, !1)).join("") + '<div class="sec">Earlier today</div>' + todayBlock : todayBlock + (tmrRows.length ? `<div class="sec">Tomorrow \xB7 ${tmrLabel}</div>` + tmrRows.map((r) => assignCard(r, fmtDay(tmr, { weekday: "long" }), !0)).join("") : next ? `<div class="sec">Next up \xB7 ${fmtDay(next.d, { weekday: "short", month: "short", day: "numeric" })}</div>` + next.r.map((r) => assignCard(r, fmtDay(next.d, { weekday: "long" }), !0)).join("") : "")}
+    <button class="rbtn" data-act="radd">${RCPT}<span><b>Add a receipt</b><small>Gas, supplies, food. Type it in, it goes to the office.</small></span></button>
   </main>`;
   }
   function daySection(d, rows) {
@@ -156,7 +157,7 @@
     }).join("")}</main>`;
   }
   function jobsScreen() {
-    let q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter((j) => !q || (j.name + " " + j.gc + " " + j.address).toLowerCase().includes(q)), on = all.filter((j) => j.status === "In Progress"), up = all.filter((j) => j.status !== "In Progress").sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999")), row = (j) => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}</div>
+    let q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter((j) => !q || (j.name + " " + j.gc + " " + j.address).toLowerCase().includes(q)), on = all.filter((j) => j.status === "In Progress"), up = all.filter((j) => j.status !== "In Progress").sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999")), row = (j) => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ""}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(" \xB7 "))}${j.start && j.status !== "In Progress" && j.start >= today() ? " \xB7 starts " + fmtDay(j.start, { month: "short", day: "numeric", year: j.start.slice(0, 4) === today().slice(0, 4) ? void 0 : "numeric" }) : ""}</div></button>`;
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
@@ -184,6 +185,7 @@
       return w ? `<div class="wd"><b>${n ? fmtDay(d, { weekday: "short" }) : "Today"}</b>${wxIcon(w.code, 24)}<span>${w.hi}\xB0 <i>${w.lo}\xB0</i></span><small>${w.pop}%</small></div>` : "";
     }).join("")}</div>` : ""}
     <div class="sech"><div class="sec">Scope &amp; products</div>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ""}</div><div class="card">${groups.length ? groups.map(spec).join("") : `<div class="empty">Scope hasn't been entered yet. Check with Riley before starting.</div>`}</div>
+    ${rcptSection(j)}
     <div class="sech"><div class="sec">Site &amp; contacts</div>${canEdit() ? '<button class="addl" data-act="jedit">Edit</button>' : ""}</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[["Contact", site.contact], ["Phone", site.phone], ["Email", site.email], ["Access", site.access]].filter((x) => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join("")}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map((r) => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: "short", month: "short", day: "numeric" })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join("")}</div>` : ""}
   </main>`;
@@ -349,6 +351,7 @@
     }, drawForm();
   }
   function drawForm() {
+    if (S.form.kind === "rcpt") return drawRcpt();
     let f = S.form, v = f.v, job = f.kind === "scope" && jobById(f.job), isJob = f.kind === "job", areas = job ? [...new Set(job.scope.map((s) => s.area).filter(Boolean))] : [], field = ([k, label, type, opts]) => {
       if (k === "@") return `<div class="sec" style="margin:6px 0 -4px">${label}</div>`;
       let val = esc(v[k] ?? ""), list = type === "list" ? k === "area" ? areas : opts : null, input = type === "select" ? `<select data-ff="${k}">${opts.map((o) => `<option${o === v[k] ? " selected" : ""}>${o}</option>`).join("")}</select>` : type === "area" ? `<textarea data-ff="${k}" rows="2">${val}</textarea>` : `<input data-ff="${k}" value="${val}" ${type === "date" ? 'type="date"' : type === "num" ? 'inputmode="decimal"' : type === "tel" ? 'type="tel"' : 'type="text"'}${list ? ` list="dl-${k}"` : ""} autocomplete="off">${list ? `<datalist id="dl-${k}">${list.map((o) => `<option value="${esc(o)}">`).join("")}</datalist>` : ""}`;
@@ -365,6 +368,7 @@
   }
   function formCheck() {
     let f = S.form, v = f.v;
+    if (f.kind === "rcpt") return rcptCheck(v);
     if (f.kind === "job") {
       if (!f.row) {
         let id = String(v.id).trim().toUpperCase();
@@ -384,10 +388,62 @@
     try {
       let res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
       if (!res.ok) throw new Error(res.error || "Could not save.");
-      S.form = null, closeSheet(), f.kind === "job" && !f.row && (S.job = item.id), await load(), toast(del ? "Deleted." : "Saved to the sheet.");
+      S.form = null, closeSheet(), f.kind === "job" && !f.row && (S.job = item.id), await load(), toast(del ? "Deleted." : f.kind === "rcpt" ? "Receipt saved." : "Saved to the sheet.");
     } catch (err) {
       f.busy = !1, f.err = navigator.onLine ? err.message : "No signal. Nothing was saved, try again when you have service.", drawForm();
     }
+  }
+  var CATS = ["Fuel", "Materials", "Food", "Lodging", "Equipment", "Other"], CARDS = ["Gas card", "General card"], money = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), CAT_COLOR = { Fuel: "#ec5b37", Materials: "#2f7be0", Food: "#eba312", Lodging: "#8b5cf6", Equipment: "#0ea5a5", Other: "#8a938c" }, RCPT = I('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>', 18), recsFor = (id) => (canEdit() ? S.data?.receipts : S.data?.myReceipts || []).filter((r) => r.job === id).sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row), jobTotal = (id) => (S.data?.receipts || []).filter((r) => r.job === id).reduce((t, r) => t + (+r.amount || 0), 0);
+  function rcptForm(src) {
+    let r = src.row ? src : null, job = src.job || mineOn(today())[0]?.job || "";
+    S.form = {
+      kind: "rcpt",
+      row: r?.row || null,
+      expect: r ? { job: r.job, amount: r.amount, date: r.date } : null,
+      del: !1,
+      busy: !1,
+      err: "",
+      v: r ? { job: r.job, date: r.date, amount: String(r.amount), card: r.card, cat: r.cat, vendor: r.vendor || "", notes: r.notes || "" } : { job, date: today(), amount: "", card: "Gas card", cat: "Fuel", vendor: "", notes: "" }
+    }, drawForm();
+  }
+  function drawRcpt() {
+    let f = S.form, v = f.v, jobs = S.data?.jobs || [], opt = (val, l, sel) => `<option value="${esc(val)}"${sel ? " selected" : ""}>${esc(l)}</option>`;
+    showSheet(`<div class="ov" data-act="fclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="fH">
+    <div class="sh"><h2 id="fH">${f.row ? "Edit receipt" : "Add a receipt"}</h2><button class="done" data-act="fclose">Cancel</button></div>
+    <label class="fl">Job<select data-ff="job">${opt("", "Pick a job", !v.job)}${jobs.map((j) => opt(j.id, `${j.id} \xB7 ${j.name}`, j.id === v.job)).join("")}</select></label>
+    <div class="f2"><label class="fl">Amount<span class="amt"><i>$</i><input data-ff="amount" inputmode="decimal" placeholder="0.00" value="${esc(v.amount)}" autocomplete="off"></span></label>
+      <label class="fl">Date<input type="date" data-ff="date" value="${v.date}" max="${today()}"></label></div>
+    <div class="f2"><label class="fl">Card<select data-ff="card">${CARDS.map((c) => opt(c, c, c === v.card)).join("")}</select></label>
+      <label class="fl">Category<select data-ff="cat">${CATS.map((c) => opt(c, c, c === v.cat)).join("")}</select></label></div>
+    <label class="fl">Where<input data-ff="vendor" value="${esc(v.vendor)}" placeholder="Chevron, Sherwin-Williams\u2026" autocomplete="off"></label>
+    <label class="fl">Note<textarea data-ff="notes" rows="2" placeholder="Optional">${esc(v.notes)}</textarea></label>
+    ${f.err ? `<p class="ferr" role="alert">${esc(f.err)}</p>` : ""}
+    <div class="btns ${f.row ? "" : "one"}"><button class="btn go" data-act="fsave"${f.busy ? " disabled" : ""}>${f.busy ? "Saving\u2026" : "Save receipt"}</button>${f.row ? `<button class="btn del" data-act="fdel"${f.busy ? " disabled" : ""}>${f.del ? "Tap again to delete" : "Delete"}</button>` : ""}</div>
+  </div></div>`);
+  }
+  function rcptCheck(v) {
+    if (!v.job) return "Pick the job this receipt is for.";
+    let a = String(v.amount).replace(/[$,\s]/g, "");
+    return !/^\d+(\.\d{1,2})?$/.test(a) || !(+a > 0) ? "Type the amount, like 64.20." : (v.amount = a, !v.date || v.date > today() ? "Pick the date on the receipt." : "");
+  }
+  function rcptRow(r, who) {
+    let by = who && r.by ? first(r.by) : "";
+    return `<button class="rc" data-rrow="${r.row}"><span class="rcd">${fmtDay(r.date, { month: "short", day: "numeric" })}</span>
+    <span class="rcm"><b>${esc(r.vendor || r.cat)}</b><small>${esc([r.vendor ? r.cat : "", r.card, by].filter(Boolean).join(" \xB7 "))}</small></span><span class="rca">${money(r.amount)}</span></button>`;
+  }
+  function rcptSection(j) {
+    let list = recsFor(j.id), add = '<button class="addl" data-act="radd">+ Add receipt</button>';
+    if (!canEdit()) return `<div class="sech"><div class="sec">Your receipts</div>${add}</div><div class="card rcl">${list.length ? list.map((r) => rcptRow(r, !1)).join("") : '<div class="empty">Got a gas or supply receipt for this job? Add it here.</div>'}</div>`;
+    let total = list.reduce((t, r) => t + (+r.amount || 0), 0), by = {};
+    list.forEach((r) => {
+      by[r.cat] = (by[r.cat] || 0) + (+r.amount || 0);
+    });
+    let cats = CATS.filter((c) => by[c]), shown = S.allRcpt === j.id ? list : list.slice(0, 6);
+    return `<div class="sech"><div class="sec">Costs <span class="only">only you and editors see this</span></div>${add}</div>
+  <div class="card rcl">${list.length ? `<div class="ctot"><b>${money(total)}</b><span>${list.length} receipt${list.length > 1 ? "s" : ""}</span></div>
+    <div class="cbar">${cats.map((c) => `<i style="flex:${by[c]};background:${CAT_COLOR[c]}"></i>`).join("")}</div>
+    <div class="clg">${cats.map((c) => `<span><i style="background:${CAT_COLOR[c]}"></i>${c} <b>${money(by[c])}</b></span>`).join("")}</div>
+    ${shown.map((r) => rcptRow(r, !0)).join("")}${list.length > shown.length ? `<button class="lnk more" data-act="rall">Show all ${list.length}</button>` : ""}` : '<div class="empty">No receipts yet.</div>'}</div>`;
   }
   var motionOK = matchMedia("(prefers-reduced-motion: no-preference)"), sheetT = 0;
   function showSheet(html) {
@@ -493,6 +549,7 @@
       return;
     }
     if (d.sidx !== void 0) return scopeForm(jobById(S.job), +d.sidx);
+    if (d.rrow) return rcptForm((canEdit() ? S.data.receipts : S.data.myReceipts).find((r) => r.row === +d.rrow));
     if (d.act === "edclose" && (S.ed = null, closeSheet(), !d.job))
       return;
     if (d.edrow) return editor(JSON.parse(d.edrow));
@@ -518,7 +575,7 @@
     else if (act === "mprev" || act === "mnext" || act === "mnow") {
       let f = fromKey(S.month);
       act === "mnow" ? S.month = today().slice(0, 8) + "01" : (f.setMonth(f.getMonth() + (act === "mprev" ? -1 : 1)), S.month = keyOf(f)), S.sel = S.month.slice(0, 7) === today().slice(0, 7) ? today() : S.month, render(act === "mprev" ? "prev" : act === "mnext" ? "next" : "tab");
-    } else act === "edadd" ? editor({ date: S.tab === "cal" ? S.sel : S.tab === "week" && S.week > today() ? S.week : today() }) : act === "edsave" ? edSave(!1) : act === "jedit" ? jobForm(jobById(S.job)) : act === "jnew" ? jobForm(null) : act === "sadd" ? scopeForm(jobById(S.job), -1) : act === "fsave" ? formSave(!1) : act === "fdel" ? S.form.del ? formSave(!0) : (S.form.del = !0, drawForm()) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "close" ? closeSheet() : act === "refresh" && (closeSheet(), load(!0));
+    } else act === "edadd" ? editor({ date: S.tab === "cal" ? S.sel : S.tab === "week" && S.week > today() ? S.week : today() }) : act === "edsave" ? edSave(!1) : act === "jedit" ? jobForm(jobById(S.job)) : act === "jnew" ? jobForm(null) : act === "sadd" ? scopeForm(jobById(S.job), -1) : act === "radd" ? rcptForm({ job: S.job || "" }) : act === "rall" ? (S.allRcpt = S.job, render()) : act === "fsave" ? formSave(!1) : act === "fdel" ? S.form.del ? formSave(!0) : (S.form.del = !0, drawForm()) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "close" ? closeSheet() : act === "refresh" && (closeSheet(), load(!0));
   });
   var toastT = 0;
   function toast(msg) {
@@ -549,7 +606,7 @@
   document.addEventListener("change", edField);
   var fField = (e) => {
     let el = e.target.closest("[data-ff]");
-    !el || !S.form || (S.form.v[el.dataset.ff] = el.value, S.form.del = !1, el.dataset.ff === "status" && drawForm());
+    !el || !S.form || (S.form.v[el.dataset.ff] = el.value, S.form.del = !1, el.dataset.ff === "status" && drawForm(), el.dataset.ff === "card" && S.form.kind === "rcpt" && (S.form.v.cat = el.value === "Gas card" ? "Fuel" : S.form.v.cat === "Fuel" ? "Materials" : S.form.v.cat, drawForm()));
   };
   document.addEventListener("input", fField);
   document.addEventListener("change", fField);
