@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
 <meta name="theme-color" content="#141815">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -393,16 +394,23 @@ body{font-weight:450;-webkit-font-smoothing:antialiased;text-rendering:optimizeL
 @keyframes live{50%{box-shadow:0 0 0 6px rgba(63,178,122,0)}}
 .tabbar{background:color-mix(in srgb,var(--card) 88%,transparent)}
 @media(prefers-color-scheme:dark){.tabbar{background:color-mix(in srgb,#1a1f1c 90%,transparent)}}
-/* opening animation: logo fades up over a faint topo map. Once per app open, skipped for reduced motion */
-#splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;color:#eef2ee;background:#0e1210;transition:opacity .55s ease,transform .6s cubic-bezier(.2,.8,.2,1)}
-#splash.out{opacity:0;transform:scale(1.03);pointer-events:none}
-#splash .topo{top:0;height:100%;opacity:.5;-webkit-mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent);mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent)}
-#splash .topo text,#splash .topo circle,#splash .topo path:not(use path){display:none}
+/* opening animation: logo fades up over a faint topo map. Once per app open, skipped for reduced motion.
+   It waits (dark screen) until the font is loaded and the app has built its first screen, so nothing jumps;
+   only opacity and position animate, and a safety fade clears it after 4s even if the script never runs. */
+#splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;color:#eef2ee;background:#0e1210;will-change:opacity;transition:opacity .5s ease;animation:splSafe .5s ease 4s forwards}
+#splash.out{opacity:0;pointer-events:none}
+@keyframes splSafe{to{opacity:0;visibility:hidden}}
+#splash .topo{top:0;height:100%;opacity:.01;will-change:opacity;-webkit-mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent);mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent)}
+#splash .topo text,#splash .topo circle{display:none}
 .spl{position:relative;display:flex;flex-direction:column;align-items:center}
-.slogo{font-weight:900;font-size:min(20.9vw,130px);letter-spacing:-.02em;line-height:1;opacity:0;animation:fadeUp .9s cubic-bezier(.2,.8,.2,1) forwards}
+.slogo{font-weight:900;font-size:min(20.9vw,130px);letter-spacing:-.02em;line-height:1;opacity:0;will-change:opacity,transform}
 .slogo i{font-style:italic;color:#4fb576}
-.ssub{font-size:max(11px,min(3.55vw,22px));font-weight:800;letter-spacing:.42em;margin:min(5.4vw,34px) 0 0 .42em;color:#8e9a92;opacity:0;animation:fadeUp .6s cubic-bezier(.2,.8,.2,1) .65s forwards}
-@keyframes fadeUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.ssub{font-size:max(11px,min(3.55vw,22px));font-weight:800;letter-spacing:.42em;margin:min(5.4vw,34px) 0 0 .42em;color:#8e9a92;opacity:0;will-change:opacity,transform}
+#splash.go .topo{animation:topoIn .9s ease forwards}
+#splash.go .slogo{animation:fadeUp .9s cubic-bezier(.2,.8,.2,1) forwards}
+#splash.go .ssub{animation:fadeUp .6s cubic-bezier(.2,.8,.2,1) .65s forwards}
+@keyframes fadeUp{from{opacity:0;transform:translate3d(0,14px,0) scale(.98)}to{opacity:1;transform:none}}
+@keyframes topoIn{from{opacity:.01}to{opacity:.5}}
 </style>
 </head>
 <body>
