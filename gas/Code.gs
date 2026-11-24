@@ -10,8 +10,10 @@
  *   Jobs      Job ID | Job name | GC | Address | Type | Status | Start date | Prevailing wage ($/hr) |
  *             Crew notes | Site contact | Phone | Email | Site access
  *   Scope     Job ID | Area | Scope | Product | Color | Sheen | Coats | Coverage | Qty
- *   Schedule  Date | Job ID | Start | Crew | Notes
- * Start here and Inbox are for people, not the app.
+ *   Schedule  Date | Job | Start | one checkbox column per person, headed with their first name | Notes
+ *             (a typed "Crew" column of names also still works)
+ * Job cells can be "P-03" or the picker's "P-03 · Cape Disappointment ...": only the ID is used.
+ * Start here, Lists and Inbox are for people, not the app.
  */
 
 var CACHE_SECONDS = 60;
@@ -38,9 +40,45 @@ function onEdit() {
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Crew Hub')
+    .addItem('Copy selected day to the next workday', 'copyDayForward')
+    .addItem('Sort the schedule by date', 'sortSchedule')
+    .addSeparator()
     .addItem('Make link codes for anyone missing one', 'makeLinkCodes')
     .addItem('Send changes to phones now', 'onEdit')
     .addToUi();
+}
+
+/* Copies every row on the selected row's date to the next Mon-Fri day, without the notes,
+   so only what's different needs changing. */
+function copyDayForward() {
+  var ss = SpreadsheetApp.getActive(), ui = SpreadsheetApp.getUi(), sh = ss.getSheetByName('Schedule');
+  var cell = ss.getActiveRange();
+  if (!cell || cell.getSheet().getName() !== 'Schedule' || cell.getRow() < 2) {
+    ui.alert('Click any row of the day you want to copy on the Schedule tab, then run this again.');
+    return;
+  }
+  var v = sh.getDataRange().getValues(), head = v[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var di = head.indexOf('date'), ni = head.indexOf('notes');
+  var from = v[cell.getRow() - 1][di];
+  if (!(from instanceof Date)) { ui.alert('That row has no date yet.'); return; }
+  var key = function (d) { return d instanceof Date ? d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() : ''; };
+  var to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
+  while (to.getDay() === 0 || to.getDay() === 6) to.setDate(to.getDate() + 1);
+  var rows = v.slice(1).filter(function (r) { return key(r[di]) === key(from); }).map(function (r) {
+    var c = r.slice(); c[di] = to; if (ni >= 0) c[ni] = ''; return c;
+  });
+  var already = v.slice(1).some(function (r) { return key(r[di]) === key(to); });
+  var label = Utilities.formatDate(to, ss.getSpreadsheetTimeZone(), 'EEE M/d');
+  if (already && ui.alert(label + ' already has rows. Add these as well?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  sortSchedule();
+  ss.toast('Copied ' + rows.length + (rows.length === 1 ? ' job' : ' jobs') + ' to ' + label + '. Notes were left blank.', 'Crew Hub', 6);
+}
+
+function sortSchedule() {
+  var sh = SpreadsheetApp.getActive().getSheetByName('Schedule');
+  if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).sort([{ column: 1, ascending: true }, { column: 3, ascending: true }]);
+  onEdit();
 }
 
 /* Fills an empty Link code cell for every crew row with a name.
@@ -95,6 +133,12 @@ function build_() {
     var code = txt_(r, 'link code').toLowerCase();
     if (code) codes[code] = name;
   });
+  var jobId = function (v) { var m = String(v || '').match(/[A-Za-z]+-\d+/); return m ? m[0].toUpperCase() : ''; };
+  var checked = function (r) {  // checkbox columns headed with a person's first or full name
+    return crew.filter(function (c) {
+      return r[c.name.toLowerCase()] === true || r[c.name.split(' ')[0].toLowerCase()] === true;
+    }).map(function (c) { return c.name; });
+  };
   var who = function (list) {
     return String(list || '').split(/\s*(?:,|&|\/|;|\+|\band\b)\s*/i).map(function (n) { return n.trim(); }).filter(String).map(function (n) {
       var full = crew.filter(function (c) { return c.name.toLowerCase() === n.toLowerCase(); })[0];
@@ -110,9 +154,11 @@ function build_() {
   rows_(ss, 'Schedule').forEach(function (r) {
     var d = day(r.date);
     if (!d || d < from || d > to) return;
-    var job = txt_(r, 'job id').toUpperCase(), notes = txt_(r, 'notes');
+    var job = jobId(r.job !== undefined ? r.job : r['job id']), notes = txt_(r, 'notes');
     if (!job && !notes) return;
-    schedule.push({ date: d, job: job, crew: job ? who(r.crew) : [], start: job ? time_(r._shown.start) : '', notes: notes });
+    var people = checked(r);
+    who(r.crew).forEach(function (n) { if (people.indexOf(n) < 0) people.push(n); });
+    schedule.push({ date: d, job: job, crew: job ? people : [], start: job ? time_(r._shown.start) : '', notes: notes });
   });
   schedule.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   var onSchedule = {};
@@ -121,7 +167,7 @@ function build_() {
   // Scope, grouped by job in sheet order.
   var scope = {};
   rows_(ss, 'Scope').forEach(function (r) {
-    var id = txt_(r, 'job id').toUpperCase();
+    var id = jobId(r['job id'] !== undefined ? r['job id'] : r.job);
     if (!id) return;
     var s = { area: txt_(r, 'area'), scope: txt_(r, 'scope'), product: txt_(r, 'product'), color: txt_(r, 'color'), sheen: txt_(r, 'sheen'),
               coats: txt_(r, 'coats'), sqft: txt_(r, 'coverage'), gallons: txt_(r, 'qty') };
