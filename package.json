@@ -1,0 +1,13 @@
+{
+  "name": "mpnw-crew-hub",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --minify --format=iife --target=es2020,safari15,chrome100 --loader:.svg=text --define:__FEED__='\"data.json\"' --define:__PREVIEW__=true --outfile=www/app.js",
+    "dist": "node tools/dist.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "@fontsource-variable/archivo": "5.2.5"
+  }
+}
