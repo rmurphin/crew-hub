@@ -21,6 +21,7 @@
  * Saving from the app: the app POSTs {u, action: add|update|delete, row, expect, item}. Only people
  * with Can edit get through, and an update or delete only happens if that row still holds the date
  * and job the app saw (so a sort or someone else's edit can't send it to the wrong row).
+ * The same people can also add or change jobs ({action:'job'}) and scope lines ({action:'scope'}).
  * Job addresses are looked up once (Google Maps) so the app can show the forecast for each site.
  */
 
@@ -52,6 +53,7 @@ function save_(b) {
   var data = build_(), me = data.codes[String(b.u || '').trim().toLowerCase()];
   if (!me) return { ok: false, error: 'This link no longer works.' };
   if (!data.editors[me]) return { ok: false, error: 'Only people with Can edit on the Crew tab can change the schedule.' };
+  if (b.action === 'job' || b.action === 'scope') return saveJob_(b, data, me);
   var act = b.action, it = b.item || {}, isDay = /^\d{4}-\d{2}-\d{2}$/;
   if (['add', 'update', 'delete'].indexOf(act) < 0) return { ok: false, error: 'Unknown change.' };
   var lock = LockService.getScriptLock();
@@ -106,11 +108,82 @@ function save_(b) {
   } finally { lock.releaseLock(); }
 }
 
+/* Jobs and Scope tabs, from the app. Columns are found by header, so moving columns around is fine. */
+function saveJob_(b, data, me) {
+  var ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone(), it = b.item || {}, op = b.op;
+  if (['add', 'update', 'delete'].indexOf(op) < 0) return { ok: false, error: 'Unknown change.' };
+  var clip = function (v, n) { return String(v === undefined || v === null ? '' : v).trim().slice(0, n || 500); };
+  var num = function (v) { v = clip(v, 30); return v !== '' && !isNaN(Number(v)) ? Number(v) : v; };
+  var jobId = function (v) { var m = String(v || '').match(/[A-Za-z]+-\d+/); return m ? m[0].toUpperCase() : ''; };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { ok: false, error: 'Someone else is saving. Try again in a moment.' };
+  try {
+    var sh = ss.getSheetByName(b.action === 'job' ? 'Jobs' : 'Scope');
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var col = function (h) { return head.indexOf(h); };
+    var row = Number(b.row), cur = null;
+    if (op !== 'add') {
+      if (!(row >= 2 && row <= sh.getLastRow())) return { ok: false, error: 'That row is gone. Pull down to refresh.' };
+      cur = sh.getRange(row, 1, 1, head.length).getValues()[0];
+      var ex = b.expect || {};
+      var same = b.action === 'job' ? jobId(cur[col('job id')]) === ex.id
+        : jobId(cur[col('job id')]) === ex.job && clip(cur[col('scope')]) === clip(ex.scope) && clip(cur[col('product')]) === clip(ex.product);
+      if (!same) return { ok: false, error: 'This changed in the sheet while you were editing. Pull down to refresh and try again.' };
+    }
+    var stamp = 'by ' + me.split(' ')[0] + ', ' + Utilities.formatDate(new Date(), tz, 'M/d h:mm a');
+
+    if (b.action === 'job') {
+      if (op === 'delete') return { ok: false, error: 'Jobs aren\'t deleted from the app. Set the status to Complete instead.' };
+      var id = op === 'add' ? clip(it.id, 20).toUpperCase() : jobId(cur[col('job id')]);
+      if (op === 'add') {
+        if (!/^[A-Z]+-\d+$/.test(id)) return { ok: false, error: 'Type the job number like it is in the tracker, for example P-21.' };
+        var taken = sh.getRange(1, col('job id') + 1, sh.getLastRow(), 1).getValues().some(function (r) { return jobId(r[0]) === id; });
+        if (taken) return { ok: false, error: id + ' is already on the Jobs tab.' };
+      }
+      if (!clip(it.name)) return { ok: false, error: 'Give the job a name.' };
+      var status = ['Not Started', 'In Progress', 'Complete'].indexOf(it.status) >= 0 ? it.status : 'Not Started';
+      var rate = clip(it.rate, 20), start = /^\d{4}-\d{2}-\d{2}$/.test(it.start || '') ? new Date(+it.start.slice(0, 4), +it.start.slice(5, 7) - 1, +it.start.slice(8, 10)) : '';
+      if (rate !== '' && !(Number(rate) >= 0)) return { ok: false, error: 'Prevailing wage should be a number, like 55.64.' };
+      var vals = op === 'update' ? cur.slice() : head.map(function () { return ''; });
+      var put = function (h, v) { if (col(h) >= 0) vals[col(h)] = v; };
+      put('job id', id); put('job name', clip(it.name, 200)); put('gc', clip(it.gc, 200)); put('address', clip(it.address, 300)); put('type', clip(it.type, 60));
+      put('status', status); put('start date', start); put('prevailing wage ($/hr)', rate === '' ? '' : Math.round(Number(rate) * 100) / 100);
+      put('crew notes', clip(it.crewNotes, 1000)); put('site contact', clip(it.contact)); put('phone', clip(it.phone, 200)); put('email', clip(it.email)); put('site access', clip(it.access, 1000));
+      if (op === 'add') row = firstEmpty_(sh, ['job id', 'job name']);
+      sh.getRange(row, 1, 1, head.length).setValues([vals]);
+      sh.getRange(row, col('job id') + 1).setNote((op === 'add' ? 'Added' : 'Changed') + ' in the app ' + stamp);
+      onEdit();
+      return { ok: true };
+    }
+
+    // Scope line
+    if (op === 'delete') { sh.deleteRow(row); onEdit(); return { ok: true }; }
+    var job = data.jobs.filter(function (j) { return j.id === (op === 'add' ? b.job : jobId(cur[col('job id')])); })[0];
+    if (!job) return { ok: false, error: 'That job is not on the Jobs tab.' };
+    if (!clip(it.scope) && !clip(it.product)) return { ok: false, error: 'Fill in the scope or the product.' };
+    var line = op === 'update' ? cur.slice() : head.map(function () { return ''; });
+    var set = function (h, v) { if (col(h) >= 0) line[col(h)] = v; };
+    set('job id', job.id + ' · ' + job.name); set('area', clip(it.area, 100)); set('scope', clip(it.scope, 300)); set('product', clip(it.product, 200));
+    set('color', clip(it.color, 100)); set('sheen', clip(it.sheen, 60)); set('coats', num(it.coats)); set('coverage', clip(it.sqft, 60)); set('qty', num(it.gallons));
+    if (op === 'add') {
+      // Goes in right after this job's last line in the same area (or its last line), so the tab stays grouped.
+      var all = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), head.length).getValues(), afterArea = 0, afterJob = 0;
+      for (var i = 1; i < all.length; i++) if (jobId(all[i][col('job id')]) === job.id) { afterJob = i + 1; if (clip(all[i][col('area')]).toLowerCase() === clip(it.area).toLowerCase()) afterArea = i + 1; }
+      var after = afterArea || afterJob;
+      if (after) { sh.insertRowAfter(after); row = after + 1; } else row = firstEmpty_(sh, ['job id', 'scope', 'product']);
+    }
+    sh.getRange(row, 1, 1, head.length).setValues([line]);
+    sh.getRange(row, col('job id') + 1).setNote((op === 'add' ? 'Added' : 'Changed') + ' in the app ' + stamp);
+    onEdit();
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
 /* First Schedule row with no date, job or notes. The checkbox columns run to the bottom of the tab,
    so getLastRow() counts them as filled; this looks past them. */
-function firstEmpty_(sh) {
+function firstEmpty_(sh, keys) {
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
-  var cols = ['date', 'job', 'notes'].map(function (h) { return head.indexOf(h); }).filter(function (i) { return i >= 0; });
+  var cols = (keys || ['date', 'job', 'notes']).map(function (h) { return head.indexOf(h); }).filter(function (i) { return i >= 0; });
   var v = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), head.length).getValues();
   for (var i = 1; i < v.length; i++) if (cols.every(function (c) { return v[i][c] === '' || v[i][c] === null; })) return i + 1;
   if (v.length >= sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 50);
@@ -295,7 +368,7 @@ function build_() {
   rows_(ss, 'Scope').forEach(function (r) {
     var id = jobId(r['job id'] !== undefined ? r['job id'] : r.job);
     if (!id) return;
-    var s = { area: txt_(r, 'area'), scope: txt_(r, 'scope'), product: txt_(r, 'product'), color: txt_(r, 'color'), sheen: txt_(r, 'sheen'),
+    var s = { row: r._row, area: txt_(r, 'area'), scope: txt_(r, 'scope'), product: txt_(r, 'product'), color: txt_(r, 'color'), sheen: txt_(r, 'sheen'),
               coats: txt_(r, 'coats'), sqft: txt_(r, 'coverage'), gallons: txt_(r, 'qty') };
     if (!s.area && !s.scope && !s.product) return;
     (scope[id] = scope[id] || []).push(s);
@@ -314,7 +387,7 @@ function build_() {
     [['contact', 'site contact'], ['phone', 'phone'], ['email', 'email'], ['access', 'site access']].forEach(function (p) {
       var v = txt_(r, p[1]); if (v) site[p[0]] = v;
     });
-    jobs.push({ id: id, name: name, gc: txt_(r, 'gc'), address: txt_(r, 'address'), type: txt_(r, 'type'), status: status || 'Not Started',
+    jobs.push({ id: id, row: r._row, name: name, gc: txt_(r, 'gc'), address: txt_(r, 'address'), type: txt_(r, 'type'), status: status || 'Not Started',
                 start: day(r['start date']), pw: rate > 0 ? { rate: Math.round(rate * 100) / 100 } : null,
                 crewNotes: txt_(r, 'crew notes'), site: site, scope: scope[id] || [], geo: geo_(txt_(r, 'address'), budget) });
   });
