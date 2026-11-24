@@ -2,7 +2,6 @@
 // Data comes from the company tracker (Google Sheet) through a crew-safe feed: no costs, notes or pay.
 import TOPO_MAP from './topo.svg';
 import TOPO_FILL from './topo-fill.svg';
-import TOPO_WIDE from './topo-wide.svg';  // wider, lighter map for job-page site maps  // extra in-between contours, opening screen only
 // Set at build time: the sheet's feed in the published app, sample data.json in the preview.
 const DATA_URL = __FEED__;
 const VERSION = '1.0';
@@ -502,25 +501,18 @@ function previewRcpt(b) {  // preview only: same as the sheet script would do
   return { ok: true };
 }
 
-/* ---------- site map on the job page: our own topo map, job pinned, nearby towns for context ---------- */
-const TOWNS = [['Battle Ground', 45.781, -122.533], ['Ridgefield', 45.815, -122.743], ['Vancouver', 45.639, -122.661], ['Portland', 45.515, -122.679],
-  ['Camas', 45.587, -122.400], ['Washougal', 45.583, -122.353], ['Longview', 46.138, -122.938], ['Woodland', 45.904, -122.744], ['Ilwaco', 46.308, -124.043],
-  ['Long Beach', 46.352, -124.054], ['Astoria', 46.188, -123.831], ['Olympia', 47.038, -122.900], ['Centralia', 46.716, -122.954], ['Beaverton', 45.487, -122.804],
-  ['Hillsboro', 45.523, -122.989], ['Gresham', 45.498, -122.431], ['Tigard', 45.431, -122.771], ['Kelso', 46.147, -122.909]];
-const km = (lat, lng) => [(lng + 122.1944) * 77.07, (lat - 46.1912) * 110.57];
+/* ---------- site map on the job page: a regular street map (OpenStreetMap tiles) with the job pinned ---------- */
 function siteMap(j) {
   if (!j.geo) return '';
-  const [jx, jy] = km(+j.geo[0], +j.geo[1]), W = 350, H = 150, s = W / 80, P = (x, y) => [W / 2 + (x - jx) * s, H / 2 - (y - jy) * s];
-  const near = TOWNS.map(([n, la, lo]) => [n, ...P(...km(la, lo))]).filter(([, x, y]) => x > 8 && x < W - 8 && y > 12 && y < H - 6);
-  const peaks = MARKS.filter(m => !m.town && !m.river).map(m => [m.n.replace('MT ', 'Mt ').replace(/\B[A-Z]+/g, w => w.toLowerCase()), ...P(m.x, m.y)]).filter(([, x, y]) => x > 10 && x < W - 10 && y > 10 && y < H - 6);
-  const lbl = (x, y, t, o = .75) => `<text x="${(x + 6).toFixed(0)}" y="${(y + 4).toFixed(0)}" font-size="10.5" font-weight="650" fill="#dfe7e1" opacity="${o}">${esc(t)}</text>`;
+  const Z = 13, T = 256, lat = +j.geo[0], lng = +j.geo[1], n = 2 ** Z, r = lat * Math.PI / 180;
+  const px = (lng + 180) / 360 * n * T, py = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n * T;
+  const tiles = [];
+  for (let tx = Math.floor((px - 260) / T); tx <= Math.floor((px + 260) / T); tx++)
+    for (let ty = Math.floor((py - 90) / T); ty <= Math.floor((py + 90) / T); ty++)
+      tiles.push(`<img src="https://tile.openstreetmap.org/${Z}/${tx}/${ty}.png" alt="" loading="lazy" decoding="async" style="left:${Math.round(tx * T - px)}px;top:${Math.round(ty * T - py)}px">`);
   return `<a class="mmap" href="${mapsUrl(j.address)}" target="_blank" rel="noopener" aria-label="Open ${esc(j.name)} in maps">
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <g transform="translate(${W / 2} ${H / 2}) scale(${s}) translate(${-jx} ${jy})">${TOPO_WIDE}</g>
-      ${near.map(([n, x, y]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="2.2" fill="#dfe7e1" opacity=".55"/>` + (Math.hypot(x - W / 2, y - H / 2) > 14 ? lbl(x, y, n, .6) : '')).join('')}
-      ${peaks.map(([n, x, y]) => `<path d="M${x.toFixed(0)} ${(y - 5).toFixed(0)}l5 8h-10z" fill="none" stroke="#9cc4a8" stroke-width="1.3"/>` + lbl(x + 2, y, n, .7)).join('')}
-      <circle class="mping" cx="${W / 2}" cy="${H / 2}" r="7" fill="#4fb576"/><circle cx="${W / 2}" cy="${H / 2}" r="6.5" fill="#4fb576" stroke="#fff" stroke-width="2.2"/>
-    </svg><span class="mlab">${PIN}${esc(city(j.address) || 'Open in maps')}</span></a>`;
+    <div class="mtiles">${tiles.join('')}</div><i class="mpin"></i>
+    <span class="mlab">${PIN}${esc(city(j.address) || 'Open in maps')}</span><span class="mcred">© OpenStreetMap</span></a>`;
 }
 const buzz = () => { try { navigator.vibrate?.(9); } catch (e) {} };  // a light tick on Android; iPhones ignore it
 /* Loading placeholders: soft shapes where the cards will be, the first time the schedule loads. */
