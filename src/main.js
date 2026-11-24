@@ -1,7 +1,8 @@
 // MPNW Crew Hub: where the crew goes each day, and what the job needs.
 // Data comes from the company tracker (Google Sheet) through a crew-safe feed: no costs, notes or pay.
 import TOPO_MAP from './topo.svg';
-import TOPO_FILL from './topo-fill.svg';  // extra in-between contours, opening screen only
+import TOPO_FILL from './topo-fill.svg';
+import TOPO_WIDE from './topo-wide.svg';  // wider, lighter map for job-page site maps  // extra in-between contours, opening screen only
 // Set at build time: the sheet's feed in the published app, sample data.json in the preview.
 const DATA_URL = __FEED__;
 const VERSION = '1.0';
@@ -222,7 +223,7 @@ function jobScreen() {
   $('#app').innerHTML = `<header class="band">${TOPO('job')}<div class="w jp"><div class="jtop"><button class="back" data-act="back">${L}Back</button>${canEdit() ? `<button class="edb" data-act="jedit">${PENCIL}Edit job</button>` : ''}</div>
     <h1>${esc(j.name)}</h1><p>${esc([j.gc && 'GC: ' + j.gc, j.type].filter(Boolean).join(' · '))}${j.status === 'In Progress' ? '<span class="pill on">In progress</span>' : ''}</p></div></header>
   <main class="w">
-    <div class="card">${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
+    <div class="card">${siteMap(j)}${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
       ${pwStrip(j)}
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ''}</div>
     ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => { const d = addDays(today(), n), w = wxFor(j, d); if (!w) return '';
@@ -417,7 +418,7 @@ async function formSave(del) {
     S.form = null; closeSheet();
     if (f.kind === 'job' && !f.row) S.job = item.id;
     if (__PREVIEW__) render(); else await load();
-    toast(del ? 'Deleted.' : f.kind === 'rcpt' ? 'Receipt saved.' : 'Saved to the sheet.');
+    buzz(); toast(del ? 'Deleted.' : f.kind === 'rcpt' ? 'Receipt saved.' : 'Saved to the sheet.');
   } catch (err) { f.busy = false; f.err = !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawForm(); }
 }
 function previewForm(b) {  // preview only: apply the change to the sample data the way the sheet script would
@@ -501,6 +502,38 @@ function previewRcpt(b) {  // preview only: same as the sheet script would do
   return { ok: true };
 }
 
+/* ---------- site map on the job page: our own topo map, job pinned, nearby towns for context ---------- */
+const TOWNS = [['Battle Ground', 45.781, -122.533], ['Ridgefield', 45.815, -122.743], ['Vancouver', 45.639, -122.661], ['Portland', 45.515, -122.679],
+  ['Camas', 45.587, -122.400], ['Washougal', 45.583, -122.353], ['Longview', 46.138, -122.938], ['Woodland', 45.904, -122.744], ['Ilwaco', 46.308, -124.043],
+  ['Long Beach', 46.352, -124.054], ['Astoria', 46.188, -123.831], ['Olympia', 47.038, -122.900], ['Centralia', 46.716, -122.954], ['Beaverton', 45.487, -122.804],
+  ['Hillsboro', 45.523, -122.989], ['Gresham', 45.498, -122.431], ['Tigard', 45.431, -122.771], ['Kelso', 46.147, -122.909]];
+const km = (lat, lng) => [(lng + 122.1944) * 77.07, (lat - 46.1912) * 110.57];
+function siteMap(j) {
+  if (!j.geo) return '';
+  const [jx, jy] = km(+j.geo[0], +j.geo[1]), W = 350, H = 150, s = W / 80, P = (x, y) => [W / 2 + (x - jx) * s, H / 2 - (y - jy) * s];
+  const near = TOWNS.map(([n, la, lo]) => [n, ...P(...km(la, lo))]).filter(([, x, y]) => x > 8 && x < W - 8 && y > 12 && y < H - 6);
+  const peaks = MARKS.filter(m => !m.town && !m.river).map(m => [m.n.replace('MT ', 'Mt ').replace(/\B[A-Z]+/g, w => w.toLowerCase()), ...P(m.x, m.y)]).filter(([, x, y]) => x > 10 && x < W - 10 && y > 10 && y < H - 6);
+  const lbl = (x, y, t, o = .75) => `<text x="${(x + 6).toFixed(0)}" y="${(y + 4).toFixed(0)}" font-size="10.5" font-weight="650" fill="#dfe7e1" opacity="${o}">${esc(t)}</text>`;
+  return `<a class="mmap" href="${mapsUrl(j.address)}" target="_blank" rel="noopener" aria-label="Open ${esc(j.name)} in maps">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g transform="translate(${W / 2} ${H / 2}) scale(${s}) translate(${-jx} ${jy})">${TOPO_WIDE}</g>
+      ${near.map(([n, x, y]) => `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="2.2" fill="#dfe7e1" opacity=".55"/>` + (Math.hypot(x - W / 2, y - H / 2) > 14 ? lbl(x, y, n, .6) : '')).join('')}
+      ${peaks.map(([n, x, y]) => `<path d="M${x.toFixed(0)} ${(y - 5).toFixed(0)}l5 8h-10z" fill="none" stroke="#9cc4a8" stroke-width="1.3"/>` + lbl(x + 2, y, n, .7)).join('')}
+      <circle class="mping" cx="${W / 2}" cy="${H / 2}" r="7" fill="#4fb576"/><circle cx="${W / 2}" cy="${H / 2}" r="6.5" fill="#4fb576" stroke="#fff" stroke-width="2.2"/>
+    </svg><span class="mlab">${PIN}${esc(city(j.address) || 'Open in maps')}</span></a>`;
+}
+const buzz = () => { try { navigator.vibrate?.(9); } catch (e) {} };  // a light tick on Android; iPhones ignore it
+/* Loading placeholders: soft shapes where the cards will be, the first time the schedule loads. */
+function skeletonScreen() {
+  $('#tabs').hidden = false;
+  const line = (w, h = 14, mt = 10) => `<div class="sk" style="width:${w};height:${h}px;margin-top:${mt}px"></div>`;
+  $('#app').innerHTML = `<header class="band tall">${TOPO('today')}<div class="w"><div class="top">${LOGO}</div>
+    <div class="hi"><div class="sk skd" style="width:150px;height:30px"></div><div class="sk skd" style="width:190px;height:14px;margin-top:12px"></div></div></div></header>
+  <main class="w lift"><div class="card hero">${line('34%', 11, 0)}${line('62%', 26, 14)}${line('40%')}${line('78%')}<div class="btns" style="margin-top:16px"><div class="sk" style="height:52px;border-radius:16px"></div><div class="sk" style="height:52px;border-radius:16px"></div></div></div>
+    <div class="sk" style="width:46%;height:11px;margin:30px 4px 0"></div>
+    <div class="card">${line('30%', 11, 0)}${line('55%', 20, 12)}${line('70%')}</div></main>`;
+}
+
 /* ---------- render & events ---------- */
 /* ---------- motion: the header map drifts slower than the page, and cards rise into place as they scroll into view ---------- */
 const motionOK = matchMedia('(prefers-reduced-motion: no-preference)');
@@ -573,6 +606,7 @@ function openJob(id) { S.listY = scrollY; S.job = id; history.pushState({ job: i
 function closeJob() { S.job = null; render('pop'); scrollTo(0, S.listY || 0); parallax(); }
 addEventListener('popstate', () => { if (S.skipPop) { S.skipPop = false; return; } if (S.job) closeJob(); });
 function render2() {
+  if (S.key && !S.bad && !S.offline && !S.data) return skeletonScreen();
   if (!S.key || S.bad || !S.me || !S.data) return linkScreen();
   $('#tabs').hidden = false;
   document.querySelectorAll('#tabs button').forEach((b, i) => { b.toggleAttribute('aria-current', false); if (b.dataset.tab === S.tab) { b.setAttribute('aria-current', 'page'); $('#tabs').style.setProperty('--ti', i); } });
@@ -588,7 +622,7 @@ document.addEventListener('click', e => {
   if (d.edrow) return editor(JSON.parse(d.edrow));
   if (d.edmode) { S.ed.off = d.edmode === 'off'; S.ed.err = ''; return drawEditor(); }
   if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
-  if (d.tab) { if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
+  if (d.tab) { buzz(); if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
   if (d.job) return openJob(d.job);
   if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; return render(); }
   const act = d.act;
