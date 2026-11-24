@@ -6,6 +6,9 @@
  * job info for whoever owns that code. A wrong or deleted code gets nothing.
  *
  * Tabs it reads (row 1 = headers, any column order):
+ *   Receipts  Date | Job | Amount | Card | Category | Where | Note | Entered by | Entered at
+ *             Anyone can add receipts from the app. Crew members only ever get their own receipts back;
+ *             job totals and everyone's receipts only go to people with Can edit.
  *   Crew      Name | Role | Link code | Personal link | Active | Can edit
  *             People with Can edit ticked can add, change and delete schedule rows from the app.
  *   Jobs      Job ID | Job name | GC | Address | Type | Status | Start date | Prevailing wage ($/hr) |
@@ -36,6 +39,9 @@ function doGet(e) {
     var me = data.codes[code];
     if (me) {
       out = { me: me, canEdit: !!data.editors[me], updated: data.updated, crew: data.crew, jobs: data.jobs, schedule: data.schedule };
+      // Costs: everything for editors, only their own receipts for everyone else.
+      if (data.editors[me]) out.receipts = data.receipts;
+      else out.myReceipts = data.receipts.filter(function (r) { return r.by === me; }).map(function (r) { var c = {}; for (var k in r) c[k] = r[k]; delete c.by; return c; });
     }
   }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
@@ -52,7 +58,8 @@ function save_(b) {
   var ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone();
   var data = build_(), me = data.codes[String(b.u || '').trim().toLowerCase()];
   if (!me) return { ok: false, error: 'This link no longer works.' };
-  if (!data.editors[me]) return { ok: false, error: 'Only people with Can edit on the Crew tab can change the schedule.' };
+  if (b.action === 'rcpt') return saveReceipt_(b, data, me);  // anyone signed in can send receipts
+  if (!data.editors[me]) return { ok: false, error: 'Only people with Can edit on the Crew tab can make this change.' };
   if (b.action === 'job' || b.action === 'scope') return saveJob_(b, data, me);
   var act = b.action, it = b.item || {}, isDay = /^\d{4}-\d{2}-\d{2}$/;
   if (['add', 'update', 'delete'].indexOf(act) < 0) return { ok: false, error: 'Unknown change.' };
@@ -104,6 +111,51 @@ function save_(b) {
     range.setValues([vals]);
     if (col('date') >= 0) sh.getRange(row, col('date') + 1).setNote((act === 'add' ? 'Added' : 'Changed') + ' in the app by ' + who + ', ' + stamp);
     sortSchedule();
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+/* Receipts: anyone can add; crew can change or delete only their own; editors can change any. */
+function saveReceipt_(b, data, me) {
+  var ss = SpreadsheetApp.getActive(), tz = ss.getSpreadsheetTimeZone(), it = b.item || {}, op = b.op, editor = !!data.editors[me];
+  if (['add', 'update', 'delete'].indexOf(op) < 0) return { ok: false, error: 'Unknown change.' };
+  var sh = ss.getSheetByName('Receipts');
+  if (!sh) return { ok: false, error: 'The Receipts tab is missing from the sheet.' };
+  var clip = function (v, n) { return String(v === undefined || v === null ? '' : v).trim().slice(0, n || 300); };
+  var jobId = function (v) { var m = String(v || '').match(/[A-Za-z]+-\d+/); return m ? m[0].toUpperCase() : ''; };
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { ok: false, error: 'Someone else is saving. Try again in a moment.' };
+  try {
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var col = function (h) { return head.indexOf(h); };
+    var row = Number(b.row), cur = null;
+    if (op !== 'add') {
+      if (!(row >= 2 && row <= sh.getLastRow())) return { ok: false, error: 'That receipt is gone. Pull down to refresh.' };
+      cur = sh.getRange(row, 1, 1, head.length).getValues()[0];
+      var was = data.receipts.filter(function (r) { return r.row === row; })[0], ex = b.expect || {};
+      if (!was || was.job !== ex.job || was.date !== ex.date || Math.abs(was.amount - Number(ex.amount)) > .005)
+        return { ok: false, error: 'This receipt changed while you were editing. Pull down to refresh and try again.' };
+      if (!editor && was.by !== me) return { ok: false, error: 'You can only change your own receipts.' };
+    }
+    if (op === 'delete') { sh.deleteRow(row); onEdit(); return { ok: true }; }
+
+    var job = data.jobs.filter(function (j) { return j.id === it.job; })[0];
+    if (!job) return { ok: false, error: 'Pick the job this receipt is for.' };
+    var amt = Number(clip(it.amount, 20).replace(/[$,\s]/g, ''));
+    if (!(amt > 0 && amt < 100000)) return { ok: false, error: 'Type the amount, like 64.20.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(it.date || '') || it.date > today) return { ok: false, error: 'Pick the date on the receipt.' };
+    var card = ['Gas card', 'General card'].indexOf(it.card) >= 0 ? it.card : 'General card';
+    var cat = ['Fuel', 'Materials', 'Food', 'Lodging', 'Equipment', 'Other'].indexOf(it.cat) >= 0 ? it.cat : 'Other';
+    var vals = op === 'update' ? cur.slice() : head.map(function () { return ''; });
+    var put = function (h, v) { if (col(h) >= 0) vals[col(h)] = v; };
+    put('date', new Date(+it.date.slice(0, 4), +it.date.slice(5, 7) - 1, +it.date.slice(8, 10)));
+    put('job', job.id + ' · ' + job.name); put('amount', Math.round(amt * 100) / 100); put('card', card); put('category', cat);
+    put('where', clip(it.vendor, 120)); put('note', clip(it.notes, 300));
+    if (op === 'add') { put('entered by', me); put('entered at', new Date()); row = firstEmpty_(sh, ['date', 'job', 'amount']); }
+    else if (cur[col('entered by')] !== me) sh.getRange(row, col('date') + 1).setNote('Changed in the app by ' + me.split(' ')[0] + ', ' + Utilities.formatDate(new Date(), tz, 'M/d h:mm a'));
+    sh.getRange(row, 1, 1, head.length).setValues([vals]);
+    onEdit();
     return { ok: true };
   } finally { lock.releaseLock(); }
 }
@@ -216,7 +268,7 @@ function geo_(address, budget) {
 /* Edits made in the sheet reach phones within a minute. */
 function onEdit() {
   PropertiesService.getScriptProperties().setProperty('updated', new Date().toISOString());
-  CacheService.getScriptCache().remove('feed');
+  CacheService.getScriptCache().remove('feed_n');
 }
 
 function onOpen() {
@@ -293,11 +345,17 @@ function newCode_() {
 }
 
 function shared_() {
-  var cache = CacheService.getScriptCache();
-  var hit = cache.get('feed');
-  if (hit) return JSON.parse(hit);
-  var data = build_();
-  try { cache.put('feed', JSON.stringify(data), CACHE_SECONDS); } catch (err) { /* too big to cache; still served */ }
+  // Cached in pieces: one cache entry holds at most 100 KB, and receipts make the feed grow over time.
+  var cache = CacheService.getScriptCache(), n = Number(cache.get('feed_n') || 0);
+  if (n) {
+    var parts = cache.getAll(Array.apply(null, Array(n)).map(function (_, i) { return 'feed_' + i; }));
+    var json = ''; for (var i = 0; i < n; i++) { if (!parts['feed_' + i]) { json = null; break; } json += parts['feed_' + i]; }
+    if (json) return JSON.parse(json);
+  }
+  var data = build_(), text = JSON.stringify(data), put = {}, size = 90000, count = Math.ceil(text.length / size);
+  for (var j = 0; j < count; j++) put['feed_' + j] = text.slice(j * size, (j + 1) * size);
+  put.feed_n = String(count);
+  try { if (count <= 20) cache.putAll(put, CACHE_SECONDS); } catch (err) { /* still served, just not cached */ }
   return data;
 }
 
@@ -393,7 +451,15 @@ function build_() {
   });
 
   var updated = PropertiesService.getScriptProperties().getProperty('updated');
-  return { codes: codes, editors: editors, crew: crew, jobs: jobs, schedule: schedule, updated: updated || null };
+  // Receipts from the last 400 days.
+  var receipts = [], since = Utilities.formatDate(new Date(Date.now() - 400 * 864e5), tz, 'yyyy-MM-dd');
+  rows_(ss, 'Receipts').forEach(function (r) {
+    var id = jobId(r.job), d = day(r.date), amt = Number(String(r.amount).replace(/[$,\s]/g, ''));
+    if (!id || !d || d < since || !(amt > 0)) return;
+    receipts.push({ row: r._row, date: d, job: id, amount: Math.round(amt * 100) / 100, card: txt_(r, 'card'), cat: txt_(r, 'category'),
+                    vendor: txt_(r, 'where'), notes: txt_(r, 'note'), by: txt_(r, 'entered by') });
+  });
+  return { codes: codes, editors: editors, crew: crew, jobs: jobs, schedule: schedule, receipts: receipts, updated: updated || null };
 }
 
 /* Rows as objects keyed by lowercase header. r._shown holds what the cell displays (used for times). */
