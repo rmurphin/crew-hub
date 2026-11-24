@@ -1,6 +1,7 @@
 // MPNW Crew Hub: where the crew goes each day, and what the job needs.
 // Data comes from the company tracker (Google Sheet) through a crew-safe feed: no costs, notes or pay.
 import TOPO_MAP from './topo.svg';
+import TOPO_FILL from './topo-fill.svg';  // extra in-between contours, opening screen only
 // Set at build time: the sheet's feed in the published app, sample data.json in the preview.
 const DATA_URL = __FEED__;
 const VERSION = '1.0';
@@ -655,7 +656,9 @@ document.addEventListener('touchend', async () => {
 const splash = $('#splash');
 render('tab');
 if (splash) {
-  splash.insertAdjacentHTML('afterbegin', TOPO('splash'));
+  // Just the contour lines here: no mountain markers or labels competing with the logo.
+  const map = TOPO('splash'), lines = map.slice(0, map.indexOf('</g>') + 4).replace('<use href="#topo-map"/>', '<use href="#topo-map"/>' + TOPO_FILL);
+  splash.insertAdjacentHTML('afterbegin', lines + '</svg></svg>');
   S.splashHold = true;
   const frames = n => new Promise(r => { const f = () => (--n ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
   const fontReady = Promise.race([Promise.all([document.fonts?.load('900 1em Archivo'), document.fonts?.ready]), new Promise(r => setTimeout(r, 700))]);
@@ -669,8 +672,8 @@ if (splash) {
   };
   // With a saved schedule on the phone, the app is already showing it, so checking for updates can wait 2 seconds.
   var waitLoad = !!(S.key && S.data);
-  fontReady.then(() => frames(2)).then(() => { splash.classList.add('go'); setTimeout(finish, 1500); });
-  setTimeout(finish, 3500);  // never hold the app longer than this
+  fontReady.then(() => frames(2)).then(() => { splash.classList.add('go'); setTimeout(finish, 2400); });
+  setTimeout(finish, 4200);  // never hold the app longer than this
 }
 if (!splash || !waitLoad) { load(); loadWeather(); }
 if (!PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
