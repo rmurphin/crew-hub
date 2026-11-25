@@ -154,7 +154,7 @@ function todayScreen() {
   const tmr = addDays(k, 1), tmrRows = mineOn(tmr), evening = new Date().getHours() >= 15 && tmrRows.length;
   const todayBlock = mine.length ? mine.map(r => assignCard(r, evening ? 'Today' : 'Today', !!evening)).join('') : `<div class="card${evening ? ' sm' : ' hero'}"><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || 'No work today') : 'Not scheduled today'}</div><div class="empty">${off ? '' : 'Nothing on the schedule for you. Check with Riley if that seems wrong.'}</div></div>`;
   const tmrLabel = fmtDay(tmr, { weekday: 'short', month: 'short', day: 'numeric' });
-  $('#app').innerHTML = `<header class="band tall">${TOPO('today')}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
+  $('#app').innerHTML = `<header class="band tall">${TOPO('today')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: 'long', month: 'long', day: 'numeric' })}</p>${updated()}</div></div></header>
   <main class="w lift">
     ${evening ? tmrRows.map(r => assignCard(r, 'Tomorrow · ' + tmrLabel, false)).join('') + `<div class="sec">Earlier today</div>` + todayBlock : todayBlock +
@@ -183,7 +183,7 @@ function calScreen() {
   }).join('');
   const seen = [...new Set((S.data?.schedule || []).filter(r => r.job && r.date.startsWith(mm)).map(r => r.job))];
   const legend = seen.map(id => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join('');
-  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
+  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div></div></header>
   <main class="w"><div class="cal"><div class="cw" aria-hidden="true">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells}</div>
     ${legend ? `<p class="mykey"><i></i>Days you're on the schedule</p>` : `<p class="empty" style="margin:12px 4px 2px">Nothing scheduled this month.</p>`}</div>
@@ -193,7 +193,7 @@ function calScreen() {
 function weekScreen() {
   const days = [...Array(7)].map((_, i) => addDays(S.week, i));
   const label = `${fmtDay(days[0], { month: 'short', day: 'numeric' })} – ${fmtDay(days[6], { month: 'short', day: 'numeric' })}`;
-  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
+  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="wprev" aria-label="Previous week">${L}</button><b>${S.week === mondayOf(today()) ? 'This week' : label}<br><span style="font-weight:500;font-size:13px;color:#9aa69d">${label}</span></b><button data-act="wnext" aria-label="Next week">${R}</button></div></div></header>
   <main class="w">${days.map(d => {
     const rows = rowsOn(d), wkend = [0, 6].includes(fromKey(d).getDay());
@@ -206,7 +206,7 @@ function jobsScreen() {
   const on = all.filter(j => j.status === 'In Progress'), up = all.filter(j => j.status !== 'In Progress').sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
   const row = j => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ''}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(' · '))}${j.start && j.status !== 'In Progress' && j.start >= today() ? ' · starts ' + fmtDay(j.start, { month: 'short', day: 'numeric', year: j.start.slice(0, 4) === today().slice(0, 4) ? undefined : 'numeric' }) : ''}</div></button>`;
-  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></div>
+  $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
   <main class="w">${on.length ? `<div class="sec">In progress</div>${on.map(row).join('')}` : ''}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join('')}` : ''}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ''}</main>`;
 }
@@ -526,6 +526,69 @@ function skeletonScreen() {
     <div class="card">${line('30%', 11, 0)}${line('55%', 20, 12)}${line('70%')}</div></main>`;
 }
 
+/* ---------- search everything: jobs, people, schedule, products and colors, receipts ----------
+   Every word typed has to match somewhere in the result (any order, any case). Only searches what this phone
+   already has: crew members' receipts are their own, and no costs are added for them. */
+const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const words = q => fold(q).split(/[\s,]+/).filter(Boolean);
+const hits = (ws, ...fields) => { const t = fold(fields.join(' ')); return ws.every(w => t.includes(w)); };
+const mark = (text, ws) => { let out = esc(text); ws.filter(w => w.length > 1).sort((a, b) => b.length - a.length).forEach(w => {
+  out = out.replace(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?![^<]*>)', 'gi'), '<mark>$1</mark>'); }); return out; };
+const SR_ICONS = { job: I('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 18),
+  person: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>', 18), day: I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', 18),
+  paint: I('<path d="M5 3h12a2 2 0 0 1 2 2v3H3V5a2 2 0 0 1 2-2z"/><path d="M19 6h2v5h-9v3"/><rect x="10" y="14" width="4" height="7" rx="1"/>', 18), rcpt: RCPT };
+function searchOpen() {
+  S.sq = '';
+  showSheet(`<div class="ov" data-act="sclose"><div class="sheet srch" role="dialog" aria-modal="true" aria-label="Search">
+    <div class="sbar"><label class="sfield">${SEARCH}<input id="sq" type="search" placeholder="Jobs, people, products, colors…" autocomplete="off" enterkeyhint="search" aria-label="Search everything"></label><button class="done" data-act="sclose">Cancel</button></div>
+    <div id="sres" aria-live="polite"></div></div></div>`);
+  drawResults(); setTimeout(() => $('#sq')?.focus(), 60);
+}
+function drawResults() {
+  const box = $('#sres'); if (!box) return;
+  const q = S.sq || '', ws = words(q), d = S.data || {};
+  if (!ws.length) {
+    const recent = store.get('recentSearch') || [];
+    box.innerHTML = recent.length ? `<div class="sec">Recent</div><div class="schips">${recent.map(r => `<button data-sq="${esc(r)}">${esc(r)}</button>`).join('')}</div>`
+      : `<p class="shint">Try a job name, a person, a product like ProMar, a color like SW 7006, or a city.</p>`;
+    return;
+  }
+  const groups = [];
+  // Jobs
+  const jobs = (d.jobs || []).filter(j => hits(ws, j.id, j.name, j.gc, j.address, j.type, j.status, j.crewNotes, j.site?.contact, j.site?.access));
+  groups.push(['Jobs', jobs.map(j => ({ icon: 'job', t: mark(j.name, ws), s: mark([j.id, j.gc, city(j.address)].filter(Boolean).join(' · '), ws), act: `data-sjob="${j.id}"` }))]);
+  // People, with their next assignment
+  const people = (d.crew || []).filter(c => hits(ws, c.name, c.role));
+  groups.push(['People', people.map(c => { const nx = (d.schedule || []).filter(r => r.job && r.date >= today() && r.crew.includes(c.name)).sort((a, b) => a.date.localeCompare(b.date))[0];
+    return { icon: 'person', t: mark(c.name, ws), s: nx ? `Next: ${fmtDay(nx.date, { weekday: 'short', month: 'short', day: 'numeric' })} · ${esc(jobById(nx.job)?.name || nx.job)}` : esc(c.role || 'Nothing scheduled'), act: `data-sperson="${esc(c.name)}"` }; })]);
+  // Schedule: two weeks back to two months ahead, one result per row (a range shows once)
+  const lo = addDays(today(), -14), hi = addDays(today(), 60), seen = new Set();
+  const sched = (d.schedule || []).filter(r => r.date >= lo && r.date <= hi && hits(ws, jobById(r.job)?.name, r.job, r.crew.join(' '), r.notes, fmtDay(r.date, { weekday: 'long', month: 'long', day: 'numeric' }), fmtDay(r.date, { month: 'short', day: 'numeric' }), r.date === today() ? 'today' : r.date === addDays(today(), 1) ? 'tomorrow' : ''))
+    .sort((a, b) => (a.date < today()) - (b.date < today()) || (a.date < today() ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))  // upcoming first, then most recent past
+    .filter(r => { const k = (r.row || '') + '|' + (r.row ? '' : r.date); if (seen.has(k)) return false; seen.add(k); return true; });
+  groups.push(['Schedule', sched.map(r => ({ icon: 'day', t: r.job ? mark(jobById(r.job)?.name || r.job, ws) : mark(r.notes || 'Day off', ws),
+    s: `${fmtDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}${r.thru ? ' – ' + fmtDay(r.thru, { month: 'short', day: 'numeric' }) : ''}${r.job ? ' · ' + mark(r.crew.map(first).join(', '), ws) : ''}`, act: `data-sday="${r.date}"` }))]);
+  // Products and colors on scope lines
+  const lines = [];
+  (d.jobs || []).forEach(j => (j.scope || []).forEach((s, i) => { if (hits(ws, s.product, s.color, s.sheen, s.scope, s.area, j.name)) lines.push({ j, s, i }); }));
+  groups.push(['Products and colors', lines.map(({ j, s, i }) => ({ icon: 'paint', t: mark([s.product, s.color].filter(Boolean).join(' · ') || s.scope, ws),
+    s: mark([s.scope, s.sheen, j.name].filter(Boolean).join(' · '), ws), act: `data-sjob="${j.id}" data-sline="${i}"` }))]);
+  // Receipts: everything for editors, only your own for everyone else
+  const recs = (canEdit() ? d.receipts : d.myReceipts) || [];
+  groups.push(['Receipts', recs.filter(r => hits(ws, r.vendor, r.cat, r.card, r.notes, r.by, jobById(r.job)?.name, String(r.amount))).sort((a, b) => b.date.localeCompare(a.date))
+    .map(r => ({ icon: 'rcpt', t: `${mark(r.vendor || r.cat, ws)} <b class="samt">${money(r.amount)}</b>`, s: mark([fmtDay(r.date, { month: 'short', day: 'numeric' }), jobById(r.job)?.name, r.card, canEdit() && r.by ? first(r.by) : ''].filter(Boolean).join(' · '), ws), act: `data-sjob="${r.job}" data-srcpt="1"` }))]);
+  const any = groups.some(([, list]) => list.length);
+  box.innerHTML = any ? groups.filter(([, list]) => list.length).map(([name, list]) => { const open = S.sAll === name, shown = open ? list : list.slice(0, 4);
+    return `<div class="sec">${name}<span class="scount">${list.length}</span></div><div class="card sres">${shown.map(x => `<button class="sr" ${x.act}><span class="si">${SR_ICONS[x.icon]}</span><span class="st2"><b>${x.t}</b><small>${x.s}</small></span></button>`).join('')}
+      ${list.length > shown.length ? `<button class="lnk more" data-sall="${name}">Show all ${list.length}</button>` : ''}</div>`; }).join('')
+    : `<p class="shint">Nothing matches "${esc(q)}". Check the spelling or try fewer words.</p>`;
+}
+function searchGo(fn) {  // remember the search, close the sheet, then go
+  const q = (S.sq || '').trim();
+  if (q) { const r = (store.get('recentSearch') || []).filter(x => fold(x) !== fold(q)); r.unshift(q); store.set('recentSearch', r.slice(0, 6)); }
+  closeSheet(); S.sAll = null; fn();
+}
+
 /* ---------- render & events ---------- */
 /* ---------- motion: the header map drifts slower than the page, and cards rise into place as they scroll into view ---------- */
 const motionOK = matchMedia('(prefers-reduced-motion: no-preference)');
@@ -607,6 +670,19 @@ function render2() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button, .ov'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('ov') && e.target !== b) return;
+  if (d.act === 'sclose') { closeSheet(); S.sAll = null; return; }
+  if (d.sq !== undefined) { S.sq = d.sq; $('#sq').value = d.sq; return drawResults(); }
+  if (d.sall) { S.sAll = d.sall; return drawResults(); }
+  if (d.sjob) return searchGo(() => { if (S.job !== d.sjob) { S.tab = 'jobs'; openJob(d.sjob); } else render();
+    // Products jump to their scope line, receipts to the receipts section.
+    const line = d.sline !== undefined ? jobById(d.sjob)?.scope?.[+d.sline] : null;
+    if (line || d.srcpt) setTimeout(() => {
+      const el = line ? [...document.querySelectorAll('#app .st')].find(x => [line.scope, line.product].filter(Boolean).every(t => x.textContent.includes(t))) : $('#app .rcl');
+      if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); glow(el, 250); }
+    }, 380); });
+  if (d.sday) return searchGo(() => { S.job = null; S.tab = 'cal'; S.month = d.sday.slice(0, 8) + '01'; S.sel = d.sday; render('tab'); scrollTo(0, 0); });
+  if (d.sperson) return searchGo(() => { S.job = null; S.tab = 'week'; const nx = (S.data.schedule || []).filter(r => r.job && r.date >= today() && r.crew.includes(d.sperson)).sort((a, b) => a.date.localeCompare(b.date))[0];
+    S.week = mondayOf(nx ? nx.date : today()); render('tab'); scrollTo(0, 0); });
   if (d.act === 'fclose') { S.form = null; closeSheet(); return; }
   if (d.sidx !== undefined) return scopeForm(jobById(S.job), +d.sidx);
   if (d.rrow) return rcptForm((canEdit() ? S.data.receipts : S.data.myReceipts).find(r => r.row === +d.rrow));
@@ -634,6 +710,7 @@ document.addEventListener('click', e => {
   else if (act === 'fdel') { if (S.form.del) formSave(true); else { S.form.del = true; drawForm(); } }
   else if (act === 'eddel') { if (S.ed.del) edSave(true); else { S.ed.del = true; drawEditor(); } }
   else if (act === 'settings') settings();
+  else if (act === 'search') searchOpen();
   else if (act === 'close') closeSheet();
   else if (act === 'refresh') { closeSheet(); load(true); }
 });
@@ -649,7 +726,9 @@ document.addEventListener('input', edField); document.addEventListener('change',
 const fField = e => { const el = e.target.closest('[data-ff]'); if (!el || !S.form) return; S.form.v[el.dataset.ff] = el.value; S.form.del = false;
   if (el.dataset.ff === 'status') drawForm();
   if (el.dataset.ff === 'card' && S.form.kind === 'rcpt') { S.form.v.cat = el.value === 'Gas card' ? 'Fuel' : S.form.v.cat === 'Fuel' ? 'Materials' : S.form.v.cat; drawForm(); } };
-document.addEventListener('input', fField); document.addEventListener('change', fField);
+document.addEventListener('input', fField);
+document.addEventListener('input', e => { if (e.target.id === 'sq') { S.sq = e.target.value; S.sAll = null; drawResults(); } });
+document.addEventListener('keydown', e => { if (e.target.id === 'sq' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }); document.addEventListener('change', fField);
 /* ---------- pull to refresh (touch phones) ---------- */
 const MTN = I('<path d="M3 19L9.5 8l3.5 5.5L15.5 10 21 19z"/>', 22);
 document.body.insertAdjacentHTML('beforeend', `<div id="ptr" aria-hidden="true"><div class="pi"><i class="arc"></i>${MTN}</div></div>`);
