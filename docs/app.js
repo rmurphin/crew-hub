@@ -93,7 +93,8 @@
     } catch {
       S.offline = !0;
     }
-    render(), loadWeather(), fresh.length ? toast("Schedule updated: " + (fresh.length > 3 ? fresh.length + " days changed" : fresh.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", "))) : manual && toast(S.offline ? "No signal. Showing the last schedule." : "Schedule is up to date.");
+    render(), loadWeather(), fresh.length && document.hidden && navigator.setAppBadge && (S.badge = (S.badge || 0) + fresh.length, navigator.setAppBadge(S.badge).catch(() => {
+    })), fresh.length ? toast("Schedule updated: " + (fresh.length > 3 ? fresh.length + " days changed" : fresh.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", "))) : manual && toast(S.offline ? "No signal. Showing the last schedule." : "Schedule is up to date.");
   }
   var usd = (n) => "$" + Number(n).toFixed(2), DOLLAR = I('<path d="M12 3v18M16.5 7.5c-.8-1.3-2.4-2-4.5-2-2.6 0-4.2 1.3-4.2 3.1 0 4.5 9 2.3 9 6.8 0 1.9-1.8 3.2-4.6 3.2-2.3 0-4-.8-4.9-2.3"/>', 18), pwStrip = (j) => j?.pw ? `<div class="pw">${DOLLAR}<span class="pwk">Prevailing wage</span><b>${usd(j.pw.rate)}<small>/hr</small></b></div>` : "", pwPill = (j) => j?.pw ? '<span class="pill pwp">PW</span>' : "", AV = ["#4f7f68", "#5b7fa8", "#a8834a", "#9a6a5a", "#7a6fa6", "#4f8a87", "#8c6a86", "#6f7f4f"], avColor = (n) => AV[[...String(n)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % AV.length], crewChips = (names, skipMe) => names.filter((n) => !(skipMe && n === S.me)).map((n) => `<span class="chip${n === S.me ? " me" : ""}"><i class="av" style="background:${avColor(n)}">${esc(first(n)[0] || "")}</i>${esc(first(n))}</span>`).join(""), updated = () => {
     if (!S.data?.updated) return "";
@@ -147,7 +148,7 @@
   function calScreen() {
     let m0 = S.month, first2 = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7), lastDay = new Date(first2.getFullYear(), first2.getMonth() + 1, 0), weeks = Math.ceil(((first2.getDay() + 6) % 7 + lastDay.getDate()) / 7), rowsFor = (d) => rowsOn(d), cells = [...Array(weeks * 7)].map((_, i) => {
       let d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter((r) => r.job), off = rows.find((r) => !r.job), out = d.slice(0, 7) !== mm, cls = ["cd", jobs.some((r) => r.crew.includes(S.me)) && "mine", out && "out", d === today() && "tdy", d === S.sel && "sel", off && "off", S.changed.has(d) && "chg", i % 7 > 4 && "we", d < today() && "past"].filter(Boolean).join(" "), label = `${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}: ${off ? esc(off.notes || "off") : jobs.length ? jobs.map((r) => esc(jobById(r.job)?.name || r.job)).join(", ") : "nothing scheduled"}`;
-      return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ""}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map((r) => `<i style="background:${jobColor(r.job)}"></i>`).join("")}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ""}</span><span class="cn">${jobs.slice(0, 3).map((r) => `<i style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join("")}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ""}</span>`}</button>`;
+      return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ""}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map((r) => `<i style="background:${jobColor(r.job)}"></i>`).join("")}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ""}</span><span class="cn">${jobs.slice(0, 3).map((r) => `<i data-cj="${r.job}" style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join("")}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ""}</span>`}</button>`;
     }).join(""), legend = [...new Set((S.data?.schedule || []).filter((r) => r.job && r.date.startsWith(mm)).map((r) => r.job))].map((id) => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join("");
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first2.toLocaleDateString("en-US", { month: "long", year: "numeric" })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div></div></header>
@@ -284,7 +285,7 @@
     let e = S.ed, jobs = S.data?.jobs || [], crew = S.data?.crew || [], opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(l)}</option>`;
     showSheet(`<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
     <div class="sh"><h2 id="edH">${e.row ? "Edit schedule" : "Add to schedule"}</h2><button class="done" data-act="edclose">Cancel</button></div>
-    ${e.row && e.thru ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: "short", month: "short", day: "numeric" })} to ${fmtDay(e.thru, { weekday: "short", month: "short", day: "numeric" })}. Changes apply to every day in it.</p>` : ""}
+    ${e.note ? `<p class="hint">${e.note}</p>` : ""}${e.row && e.thru && !e.note ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: "short", month: "short", day: "numeric" })} to ${fmtDay(e.thru, { weekday: "short", month: "short", day: "numeric" })}. Changes apply to every day in it.</p>` : ""}
     <div class="seg2"><button data-edmode="job" aria-pressed="${!e.off}">Job</button><button data-edmode="off" aria-pressed="${e.off}">Day off</button></div>
     <div class="f2"><label class="fl">${e.multi ? "First day" : "Date"}<input type="date" data-f="from" value="${e.from}"></label>
       ${e.off ? "" : e.multi ? `<label class="fl">Last day<input type="date" data-f="thru" value="${e.thru}"></label>` : "<span></span>"}</div>
@@ -561,7 +562,7 @@
     groups.push(["Receipts", recs.filter((r) => hits(ws, r.vendor, r.cat, r.card, r.notes, r.by, jobById(r.job)?.name, String(r.amount))).sort((a, b) => b.date.localeCompare(a.date)).map((r) => ({ icon: "rcpt", t: `${mark(r.vendor || r.cat, ws)} <b class="samt">${money(r.amount)}</b>`, s: mark([fmtDay(r.date, { month: "short", day: "numeric" }), jobById(r.job)?.name, r.card, canEdit() && r.by ? first(r.by) : ""].filter(Boolean).join(" \xB7 "), ws), act: `data-sjob="${r.job}" data-srcpt="1"` }))]);
     let any = groups.some(([, list]) => list.length);
     box.innerHTML = any ? groups.filter(([, list]) => list.length).map(([name, list]) => {
-      let open = S.sAll === name, shown = open ? list : list.slice(0, 4);
+      let open2 = S.sAll === name, shown = open2 ? list : list.slice(0, 4);
       return `<div class="sec">${name}<span class="scount">${list.length}</span></div><div class="card sres">${shown.map((x) => `<button class="sx" ${x.act}><span class="si"${x.c ? ` style="--jc:${x.c}"` : ""}>${SR_ICONS[x.icon]}</span><span class="st2"><b>${x.t}</b><small>${x.s}</small></span></button>`).join("")}
       ${list.length > shown.length ? `<button class="lnk more" data-sall="${name}">Show all ${list.length}</button>` : ""}</div>`;
     }).join("") : `<p class="shint">Nothing matches "${esc(q)}". Check the spelling or try fewer words.</p>`;
@@ -776,7 +777,7 @@
       a.classList.remove("nv-" + nav);
     }, 420)), nav ? motion() : (io?.disconnect(), parallax());
     let cbt = $("#cbt");
-    cbt && (cbt.textContent = cbarTitle()), cbarUpdate(), nav === "push" && countUp();
+    cbt && (cbt.textContent = cbarTitle()), cbarUpdate(), nav === "push" && countUp(), deskAfter(), goShortcut();
   }
   var deskMQ = matchMedia("(min-width: 1100px)"), desk = () => deskMQ.matches, setDesk = () => document.documentElement.classList.toggle("desk", desk());
   setDesk();
@@ -786,12 +787,187 @@
   });
   function sideBar() {
     let nav = $("#tabs");
-    nav.querySelector(".slg") || (nav.insertAdjacentHTML("afterbegin", `<div class="slg" aria-hidden="true">${LOGO}</div>`), nav.insertAdjacentHTML("beforeend", '<div class="sfoot"></div>')), nav.querySelector(".sfoot").innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? "Can edit" : "Crew"}</small></span>`;
+    nav.querySelector(".slg") || (nav.insertAdjacentHTML("afterbegin", `<div class="slg" aria-hidden="true">${LOGO}</div>`), nav.insertAdjacentHTML("beforeend", '<div class="sfoot"></div>')), nav.querySelector(".sfoot").innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? "Can edit" : "Crew"}</small></span>`, nav.querySelector(".scol") || nav.querySelector(".slg").insertAdjacentHTML("afterend", `<button class="scol" data-act="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar">${I('<path d="M15 6l-6 6 6 6"/>', 18)}</button>`), nav.querySelectorAll("button[data-tab]").forEach((b) => {
+      b.title = b.textContent.trim();
+    });
   }
+  var setSlim = (on) => {
+    document.documentElement.classList.toggle("slim", on);
+    let b = $("#tabs .scol");
+    b && (b.title = b.ariaLabel = on ? "Expand the sidebar" : "Collapse the sidebar");
+  };
+  setSlim(!!store.get("slim"));
+  var wcoMQ = matchMedia("(display-mode: window-controls-overlay)"), setWco = () => document.documentElement.classList.toggle("wco", wcoMQ.matches);
+  setWco();
+  wcoMQ.addEventListener?.("change", setWco);
+  document.body.insertAdjacentHTML("afterbegin", '<div id="tbar" aria-hidden="true"></div>');
   document.addEventListener("keydown", (e) => {
     let typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
-    e.key === "/" && !typing && !$("#sheet .ov") && S.data ? (e.preventDefault(), $("#app [data-act=search]")?.click()) : e.key === "Escape" && $("#sheet .ov") && (e.preventDefault(), $("#sheet .sh .done, #sheet [data-act=sclose]")?.click());
+    e.key === "/" && !typing && !$("#sheet .ov") && S.data ? (e.preventDefault(), $("#app [data-act=search]")?.click()) : e.key === "Escape" && $("#ctx") ? (e.preventDefault(), ctxClose()) : e.key === "Escape" && $("#sheet .ov") && (e.preventDefault(), $("#sheet .sh .done, #sheet [data-act=sclose]")?.click());
   });
+  async function schedPost(body, msg, undo) {
+    toast("Saving\u2026");
+    try {
+      let b = { u: S.key, ...body }, res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(b) }).then((r) => r.json());
+      if (!res.ok) throw new Error(res.error || "Could not save.");
+      await load(), toast(msg, undo ? { label: "Undo", fn: () => schedPost(undo, "Change undone.") } : null);
+    } catch (err) {
+      toast(S.offline || !navigator.onLine ? "No signal. Nothing was saved." : err.message), load();
+    }
+  }
+  var itemOf = (r, over = {}) => ({ date: r.from || r.date, thru: r.thru || "", job: r.job, start: r.start, crew: [...r.crew], notes: r.notes || "", ...over }), multiDay = (r) => !!(r.thru && r.thru !== (r.from || r.date)), short = (d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" });
+  function moveRow(r, to) {
+    let name = jobById(r.job)?.name || r.job;
+    if (multiDay(r)) {
+      let delta = Math.round((fromKey(to) - fromKey(r.date)) / 864e5);
+      return editor(r), S.ed.from = addDays(r.from || r.date, delta), S.ed.thru = addDays(r.thru, delta), S.ed.note = `${esc(name)} runs ${short(r.from || r.date)} to ${short(r.thru)}. Moving it shifts every day by ${Math.abs(delta)} day${Math.abs(delta) === 1 ? "" : "s"}. Check the dates and save.`, drawEditor();
+    }
+    schedPost(
+      { action: "update", row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r, { date: to }) },
+      `Moved ${name} to ${short(to)}.`,
+      { action: "update", row: r.row, expect: { date: to, job: r.job }, item: itemOf(r) }
+    );
+  }
+  function addCrew(r, who) {
+    if (r.crew.includes(who)) return toast(`${first(who)} is already on it.`);
+    let name = jobById(r.job)?.name || r.job;
+    if (multiDay(r))
+      return editor(r), S.ed.crew.push(who), S.ed.note = `${esc(name)} runs ${short(r.from || r.date)} to ${short(r.thru)}. ${esc(first(who))} will be added to every day. Save to confirm.`, drawEditor();
+    schedPost(
+      { action: "update", row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r, { crew: [...r.crew, who] }) },
+      `Added ${first(who)} to ${name}, ${short(r.date)}.`,
+      { action: "update", row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r) }
+    );
+  }
+  function dupRow(r, d) {
+    let nd = addDays(d, 1);
+    for (; [0, 6].includes(fromKey(nd).getDay()); ) nd = addDays(nd, 1);
+    schedPost({ action: "add", item: itemOf(r, { date: nd, thru: "" }) }, `Copied ${jobById(r.job)?.name || r.job} to ${short(nd)}.`);
+  }
+  function deskAfter() {
+    if (ctxClose(), hovHide(), !desk() || !canEdit() || S.tab !== "week" || S.job) return;
+    let board = $("main.board");
+    board && (board.querySelectorAll(".as[data-edrow]").forEach((b) => {
+      JSON.parse(b.dataset.edrow).job && (b.draggable = !0);
+    }), board.insertAdjacentHTML("beforebegin", `<div class="w cstrip"><span>Drag a job to another day, or drag a name onto a job</span>${(S.data?.crew || []).map((c) => `<span class="chip dc" draggable="true" data-dragcrew="${esc(c.name)}"><i class="av" style="background:${avColor(c.name)}">${esc(first(c.name)[0] || "")}</i>${esc(first(c.name))}</span>`).join("")}</div>`));
+  }
+  var dropClear = () => document.querySelectorAll(".dropok").forEach((x) => x.classList.remove("dropok"));
+  document.addEventListener("dragstart", (e) => {
+    let row = e.target.closest?.(".board .as[data-edrow]"), chip = e.target.closest?.("[data-dragcrew]");
+    if (row) S.drag = { kind: "row", r: JSON.parse(row.dataset.edrow) };
+    else if (chip) S.drag = { kind: "crew", who: chip.dataset.dragcrew };
+    else return;
+    e.dataTransfer.effectAllowed = row ? "move" : "copy", e.dataTransfer.setData("text/plain", S.drag.kind), (row || chip).classList.add("dragging"), ctxClose(), hovHide();
+  });
+  document.addEventListener("dragover", (e) => {
+    let d = S.drag;
+    if (!d) return;
+    let tgt = null;
+    if (d.kind === "row") {
+      let day = e.target.closest(".board .day[data-date]");
+      day && day.dataset.date !== d.r.date && !rowsOn(day.dataset.date).some((x) => !x.job) && (tgt = day);
+    } else {
+      let as = e.target.closest(".board .as[data-edrow]");
+      as && JSON.parse(as.dataset.edrow).job && (tgt = as);
+    }
+    if (!tgt) {
+      dropClear();
+      return;
+    }
+    e.preventDefault(), e.dataTransfer.dropEffect = d.kind === "row" ? "move" : "copy", tgt.classList.contains("dropok") || (dropClear(), tgt.classList.add("dropok"));
+  });
+  document.addEventListener("drop", (e) => {
+    let d = S.drag, tgt = $(".dropok");
+    !d || !tgt || (e.preventDefault(), dropClear(), S.drag = null, d.kind === "row" ? moveRow(d.r, tgt.dataset.date) : addCrew(JSON.parse(tgt.dataset.edrow), d.who));
+  });
+  document.addEventListener("dragend", () => {
+    S.drag = null, dropClear(), document.querySelectorAll(".dragging").forEach((x) => x.classList.remove("dragging"));
+  });
+  function ctxClose() {
+    $("#ctx")?.remove(), S.ctx = null;
+  }
+  document.addEventListener("contextmenu", (e) => {
+    if (!desk() || !S.data) return;
+    let el = e.target.closest("[data-edrow], .card[data-vt], .jl[data-job], .lg[data-job], .as[data-job], [data-cj], .jhd");
+    if (!el) return ctxClose();
+    let job = null, r = null;
+    if (el.dataset.edrow)
+      r = JSON.parse(el.dataset.edrow), job = r.job;
+    else if (el.dataset.cj) {
+      job = el.dataset.cj;
+      let d = el.closest("[data-day]")?.dataset.day;
+      r = d ? rowsOn(d).find((x) => x.job === job) : null;
+    } else if (el.classList.contains("jhd")) job = S.job;
+    else {
+      job = el.dataset.vt || el.dataset.job;
+      let d = el.dataset.date || el.closest("[data-date]")?.dataset.date;
+      r = d ? rowsOn(d).find((x) => x.job === job) : null;
+    }
+    let j = jobById(job);
+    if (!j && !r) return ctxClose();
+    e.preventDefault(), ctxClose(), S.ctx = { job, r };
+    let it = (act, icon, label) => `<button role="menuitem" data-ctx="${act}">${icon}${label}</button>`, items = [
+      j && it("open", INFO, "Open job"),
+      canEdit() && r && it("edrow", PENCIL, "Edit schedule"),
+      canEdit() && j && it("edjob", PENCIL, "Edit job info"),
+      j?.address && "<hr>",
+      j?.address && it("nav", NAV, "Navigate"),
+      j?.address && it("copy", PIN, "Copy address"),
+      canEdit() && r?.job && "<hr>",
+      canEdit() && r?.job && it("dup", PLUS, "Copy to the next workday")
+    ].filter(Boolean).join("");
+    document.body.insertAdjacentHTML("beforeend", `<div id="ctx" class="ctx" role="menu">${j ? `<div class="ctt">${jdot(job)}${esc(j.name)}</div>` : ""}${items}</div>`);
+    let m = $("#ctx"), w = m.offsetWidth, h = m.offsetHeight;
+    m.style.left = Math.min(e.clientX, innerWidth - w - 8) + "px", m.style.top = Math.min(e.clientY, innerHeight - h - 8) + "px";
+  });
+  document.addEventListener("click", (e) => {
+    let b = e.target.closest("#ctx [data-ctx]");
+    if (!b) {
+      e.target.closest("#ctx") || ctxClose();
+      return;
+    }
+    e.stopPropagation();
+    let { job, r } = S.ctx || {}, j = jobById(job), a = b.dataset.ctx;
+    ctxClose(), a === "open" ? openJob(job) : a === "edrow" ? editor(r) : a === "edjob" ? jobForm(j) : a === "nav" ? open(mapsUrl(j.address), "_blank", "noopener") : a === "copy" ? navigator.clipboard?.writeText(cleanAddr(j.address)).then(() => toast("Address copied."), () => toast("Could not copy.")) : a === "dup" && dupRow(r, r.date);
+  }, !0);
+  addEventListener("scroll", () => {
+    ctxClose(), hovHide();
+  }, { passive: !0 });
+  addEventListener("resize", ctxClose);
+  addEventListener("blur", ctxClose);
+  var hovT = 0;
+  function hovHide() {
+    clearTimeout(hovT), $("#hov")?.remove();
+  }
+  document.addEventListener("mouseover", (e) => {
+    if (!desk() || S.drag) return;
+    let cell = e.target.closest(".cd[data-day]");
+    if (!cell) {
+      e.target.closest("#hov") || hovHide();
+      return;
+    }
+    if ($("#hov")?.dataset.day === cell.dataset.day) return;
+    hovHide();
+    let d = cell.dataset.day, rows = rowsOn(d);
+    rows.length && (hovT = setTimeout(() => {
+      let off = rows.find((r) => !r.job), body = off ? `<p class="hn">${esc(off.notes || "Day off")}</p>` : rows.map((r) => {
+        let j = jobById(r.job), w2 = j && wxFor(j, d);
+        return `<div class="hr"><span class="ht">${time12(r.start)}</span><div><b>${jdot(r.job)}${esc(j?.name || r.job)}</b><div class="hc">${esc(r.crew.map(first).join(", "))}${w2 ? ` \xB7 ${w2.hi}\xB0 \xB7 ${w2.pop}%` : ""}</div>${r.notes ? `<p class="hn">${esc(r.notes)}</p>` : ""}</div></div>`;
+      }).join("");
+      document.body.insertAdjacentHTML("beforeend", `<div id="hov" class="hov" data-day="${d}"><div class="hh">${fmtDay(d, { weekday: "long", month: "short", day: "numeric" })}</div>${body}</div>`);
+      let h = $("#hov"), rc = cell.getBoundingClientRect(), w = h.offsetWidth, ht = h.offsetHeight, x = rc.right + 10 + w < innerWidth ? rc.right + 10 : rc.left - w - 10;
+      h.style.left = Math.max(8, x) + "px", h.style.top = Math.max(8, Math.min(rc.top, innerHeight - ht - 8)) + "px";
+    }, 280));
+  });
+  var GO = new URLSearchParams(location.search).get("go");
+  function goShortcut() {
+    if (!GO || !S.data || !S.me || S.splashHold) return;
+    let g = GO;
+    if (GO = null, history.replaceState(null, "", location.pathname), g === "receipt") return rcptForm({ job: "" });
+    if (g === "newjob" && canEdit())
+      return S.tab = "jobs", render("tab"), jobForm(null);
+    (["week", "cal", "jobs", "today"].includes(g) || g === "newjob") && (S.tab = g === "newjob" ? "jobs" : g, S.job = null, render("tab"));
+  }
   function openJob(id) {
     if (desk()) return deskOpen(id);
     S.listY = scrollY, S.job = id, history.pushState({ job: id }, ""), scrollTo(0, 0), render("push");
@@ -873,12 +1049,24 @@
     else if (act === "mprev" || act === "mnext" || act === "mnow") {
       let f = fromKey(S.month);
       act === "mnow" ? S.month = today().slice(0, 8) + "01" : (f.setMonth(f.getMonth() + (act === "mprev" ? -1 : 1)), S.month = keyOf(f)), S.sel = S.month.slice(0, 7) === today().slice(0, 7) ? today() : S.month, render(act === "mprev" ? "prev" : act === "mnext" ? "next" : "tab");
-    } else act === "edadd" ? editor({ date: S.tab === "cal" ? S.sel : S.tab === "week" && S.week > today() ? S.week : today() }) : act === "edsave" ? edSave(!1) : act === "jedit" ? jobForm(jobById(S.job)) : act === "jnew" ? jobForm(null) : act === "sadd" ? scopeForm(jobById(S.job), -1) : act === "radd" ? rcptForm({ job: S.job || "" }) : act === "rall" ? (S.allRcpt = S.job, render()) : act === "fsave" ? formSave(!1) : act === "fdel" ? S.form.del ? formSave(!0) : (S.form.del = !0, drawForm()) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "search" ? searchOpen() : act === "close" ? closeSheet() : act === "refresh" && (closeSheet(), load(!0));
+    } else if (act === "edadd") editor({ date: S.tab === "cal" ? S.sel : S.tab === "week" && S.week > today() ? S.week : today() });
+    else if (act === "edsave") edSave(!1);
+    else if (act === "jedit") jobForm(jobById(S.job));
+    else if (act === "jnew") jobForm(null);
+    else if (act === "sadd") scopeForm(jobById(S.job), -1);
+    else if (act === "radd") rcptForm({ job: S.job || "" });
+    else if (act === "slim") {
+      let on = !document.documentElement.classList.contains("slim");
+      store.set("slim", on), setSlim(on);
+    } else if (act === "toastfn") {
+      let f = toast.fn;
+      toast.fn = null, $("#toast")?.classList.remove("show"), f?.();
+    } else act === "rall" ? (S.allRcpt = S.job, render()) : act === "fsave" ? formSave(!1) : act === "fdel" ? S.form.del ? formSave(!0) : (S.form.del = !0, drawForm()) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "search" ? searchOpen() : act === "close" ? closeSheet() : act === "refresh" && (closeSheet(), load(!0));
   });
   var toastT = 0;
-  function toast(msg) {
+  function toast(msg, action) {
     let t = $("#toast");
-    t || (t = document.createElement("div"), t.id = "toast", t.className = "toast", t.setAttribute("role", "status"), document.body.append(t)), t.textContent = msg, t.classList.add("show"), clearTimeout(toastT), toastT = setTimeout(() => t.classList.remove("show"), 3200);
+    t || (t = document.createElement("div"), t.id = "toast", t.className = "toast", t.setAttribute("role", "status"), document.body.append(t)), t.textContent = msg, t.classList.toggle("act", !!action), toast.fn = action?.fn || null, action && t.insertAdjacentHTML("beforeend", `<button data-act="toastfn">${esc(action.label)}</button>`), t.classList.add("show"), clearTimeout(toastT), toastT = setTimeout(() => t.classList.remove("show"), action ? 7e3 : 3200);
   }
   document.addEventListener("input", (e) => {
     if (e.target.id === "q") {
@@ -894,8 +1082,12 @@
     }
   });
   document.addEventListener("visibilitychange", () => {
-    document.hidden || load();
+    document.hidden || (S.badge = 0, navigator.clearAppBadge?.().catch(() => {
+    }), load());
   });
+  matchMedia("(display-mode: standalone), (display-mode: window-controls-overlay)").matches && setInterval(() => {
+    document.hidden && S.key && load();
+  }, 5 * 6e4);
   var edField = (e) => {
     let el = e.target.closest("[data-f]");
     if (!el || !S.ed) return;
