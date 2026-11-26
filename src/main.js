@@ -47,9 +47,21 @@ const MARKS = [
   { n: 'VANCOUVER', x: -36, y: -62, town: true }, { n: 'PORTLAND', x: -40, y: -77, town: true }, { n: 'COLUMBIA RIVER', x: 2, y: -71.5, river: true }];
 // Where Mt St Helens lands in each header, chosen so labels sit in open space beside the header's own text and buttons.
 // Short headers only label the two peaks; the full map (river, towns, Rainier, Hood) shows on the sign-in screen.
+const DESK_MAP = { ok: false, loading: false };
+function loadDeskMap() {
+  if (DESK_MAP.ok || DESK_MAP.loading || !desk()) return; DESK_MAP.loading = true;
+  fetch('topo-desk.svg').then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
+    document.querySelector('#topo-map').insertAdjacentHTML('afterend', `<g id="topo-desk">${svg}</g>`); DESK_MAP.ok = true;
+    if (S.data && !S.splashHold) render();
+  }).catch(() => { DESK_MAP.loading = false; });
+}
 const SPOTS = { today: { x: '55%', y: 100, k: 2.6, few: 1 }, bar: { x: '40%', y: 30, k: 2.6, adams: 'b', few: 1 }, job: { x: '47%', y: 24, k: 2.6, adams: 'b', few: 1 }, splash: { x: '50%', y: () => Math.round(innerHeight * .5), k: 2.6, few: 1 }, link: { x: '47%', y: () => Math.round(Math.max(510, innerHeight * .64)), k: 2.6 } };
 const TOPO = spot => {
-  const { x, k, adams = 'a', few } = SPOTS[spot], y = typeof SPOTS[spot].y === 'function' ? SPOTS[spot].y() : SPOTS[spot].y, G = '#9cc4a8', W = '#eef2ee';
+  let { x, k, adams = 'a', few } = SPOTS[spot]; const y = typeof SPOTS[spot].y === 'function' ? SPOTS[spot].y() : SPOTS[spot].y, G = '#9cc4a8', W = '#eef2ee';
+  // Computers: header bands use the wide map so the lines reach both edges; the opening screen shows the map bigger.
+  const wide = desk() && spot !== 'splash' && spot !== 'link' && DESK_MAP.ok;
+  if (wide) { k = 2.6 * Math.max(1, (innerWidth - 236) / 2000); if (spot === 'bar' || spot === 'job') x = '68%'; }
+  else if (desk() && spot === 'splash') k = 2.6 * Math.min(2.4, Math.max(1, innerWidth / 820));
   const t = (px, py, txt, size, wt, fill, op, end, more = '') => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ''}${more}>${txt}</text>`;
   const marks = MARKS.filter(m => !few || m.main || m.side).map(m => {
     const px = m.x * k, py = -m.y * k;
@@ -60,7 +72,7 @@ const TOPO = spot => {
     const [nx, ny, fy, end] = side === 'r' ? [px + s + 5, py + 1, py + 11, false] : side === 'a' ? [px + s, py - s - 15, py - s - 6, true] : [px + s, py + s + 12, py + s + 21, true];
     return tri + t(nx, ny, m.n, m.main ? 10.5 : 9, m.main ? 800 : 750, col, op, end) + t(nx, fy, m.f, m.main ? 8.5 : 8, 600, col, op * .8, end);
   }).join('');
-  return `<svg class="topo" aria-hidden="true" focusable="false"><svg x="${x}" y="${y}" overflow="visible"><g transform="scale(${k})"><use href="#topo-map"/></g>${marks}</svg></svg>`;
+  return `<svg class="topo${wide ? ' wide' : ''}" aria-hidden="true" focusable="false"><svg x="${x}" y="${y}" overflow="visible"><g transform="scale(${k})"><use href="#${wide ? 'topo-desk' : 'topo-map'}"/></g>${marks}</svg></svg>`;
 };
 const LOGO = '<div class="logo">MP<i>NW</i><small>CREW HUB</small></div>';
 
@@ -207,21 +219,26 @@ function jobLists() {
   return { on: all.filter(j => j.status === 'In Progress'), up: all.filter(j => j.status !== 'In Progress').sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999')) };
 }
 function jobsScreen() { $('#app').innerHTML = jobsHTML(); }
-function jobsHTML() {
+function jobsHTML(listOnly) {
   const { on, up } = jobLists();
   const row = j => `<button class="jl${desk() && j.id === S.job ? ' sel' : ''}" data-job="${j.id}"><div class="n">${jdot(j.id)}${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ''}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(' · '))}${j.start && j.status !== 'In Progress' && j.start >= today() ? ' · starts ' + fmtDay(j.start, { month: 'short', day: 'numeric', year: j.start.slice(0, 4) === today().slice(0, 4) ? undefined : 'numeric' }) : ''}</div></button>`;
+  const list = `${on.length ? `<div class="sec">In progress</div>${on.map(row).join('')}` : ''}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join('')}` : ''}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ''}`;
+  if (listOnly) return list;
   return `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
   <main class="w">${on.length ? `<div class="sec">In progress</div>${on.map(row).join('')}` : ''}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join('')}` : ''}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ''}</main>`;
 }
-// Computer: the job list on the left and the chosen job on the right.
+// Computer: one header across the top, the job list on the left and the chosen job on the right.
 function deskJobs() {
   if (!jobById(S.job)) { const { on, up } = jobLists(), all = S.data?.jobs || []; S.job = (on[0] || up[0] || all.find(j => j.status === 'In Progress') || all[0])?.id || null; }
-  const list = jobsHTML();
-  if (!S.job) { $('#app').innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane"><p class="empty" style="padding:48px 32px">No jobs yet.</p></div></div>`; return; }
-  jobScreen(); const page = $('#app').innerHTML;
-  $('#app').innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane">${page}</div></div>`;
+  const head = `<header class="band djh">${TOPO('bar')}<div class="w"><div class="top"><div class="djt"><h1>Jobs</h1><label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div><span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div></div></header>`;
+  let pane = '<p class="empty" style="padding:40px 8px">No jobs yet.</p>';
+  if (S.job) {
+    jobScreen(); const a = $('#app'), q = s => a.querySelector(s)?.outerHTML || '';
+    pane = `<div class="jhd"><div>${q('.jp h1')}${q('.jp > p')}</div>${q('.edb')}</div>${q('main')}`;
+  }
+  $('#app').innerHTML = `${head}<div class="w split"><aside class="jlist">${jobsHTML(true)}</aside><section class="pane" aria-label="Job details">${pane}</section></div>`;
 }
 function jobScreen() {
   const j = jobById(S.job); if (!j) { S.job = null; return render(); }
@@ -789,7 +806,7 @@ function render(nav) {
 // Computer layout: wide windows get a sidebar, a week board, a split Jobs view and centered pop-ups.
 const deskMQ = matchMedia('(min-width: 1100px)'), desk = () => deskMQ.matches;
 const setDesk = () => document.documentElement.classList.toggle('desk', desk());
-setDesk(); deskMQ.addEventListener?.('change', () => { setDesk(); if (S.data && !S.splashHold) { if (!desk() && S.tab === 'jobs') S.job = null; render(); } });
+setDesk(); loadDeskMap(); deskMQ.addEventListener?.('change', () => { setDesk(); loadDeskMap(); if (S.data && !S.splashHold) { if (!desk() && S.tab === 'jobs') S.job = null; render(); } });
 function sideBar() {
   const nav = $('#tabs'); if (!nav.querySelector('.slg')) { nav.insertAdjacentHTML('afterbegin', `<div class="slg" aria-hidden="true">${LOGO}</div>`); nav.insertAdjacentHTML('beforeend', '<div class="sfoot"></div>'); }
   nav.querySelector('.sfoot').innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? 'Can edit' : 'Crew'}</small></span>`;
@@ -861,7 +878,7 @@ document.addEventListener('click', e => {
 });
 let toastT = 0;
 function toast(msg) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
-document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; if (desk() && $('.jlist')) $('.jlist').innerHTML = jobsHTML(); else jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
+document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; if (desk() && $('.jlist')) { $('.jlist').innerHTML = jobsHTML(true); return; } jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
 // editor form fields
 const edField = e => { const el = e.target.closest('[data-f]'); if (!el || !S.ed) return; const f = el.dataset.f;
