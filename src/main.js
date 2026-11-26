@@ -936,7 +936,8 @@ function calFit() {
   if (!desk() || S.tab !== 'cal') return;
   const cal = $('.calw .cal');
   if (cal) { const top = cal.getBoundingClientRect().top + scrollY; let h = Math.max(460, innerHeight - top - 14); cal.style.height = h + 'px';
-    const extra = document.documentElement.scrollHeight - innerHeight; if (extra > 0) cal.style.height = Math.max(460, h - extra) + 'px'; }
+    const extra = document.documentElement.scrollHeight - innerHeight; if (extra > 0) cal.style.height = Math.max(460, h - extra) + 'px';
+    const side = $('.calw > .day'); if (side) side.style.maxHeight = cal.style.height; }
   document.querySelectorAll('.cd .cn').forEach(cn => {
     cn.querySelector('.cmore')?.remove(); const chips = [...cn.children]; chips.forEach(c => { c.hidden = false; });
     const cell = cn.closest('.cd'); let shown = chips.length;
@@ -1012,6 +1013,7 @@ document.addEventListener('mouseover', e => {
   const cell = e.target.closest('.cd[data-day]');
   if (!cell) { if (!e.target.closest('#hov')) hovHide(); return; }
   if ($('#hov')?.dataset.day === cell.dataset.day) return;
+  if (S.tab === 'cal' && cell.dataset.day === S.sel && $('.calw > .day')) return hovHide();  // the side panel already shows it
   hovHide(); const d = cell.dataset.day, rows = rowsOn(d); if (!rows.length) return;
   hovT = setTimeout(() => {
     const off = rows.find(r => !r.job);
@@ -1072,7 +1074,7 @@ document.addEventListener('click', e => {
   if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
   if (d.tab) { buzz(); if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
   if (d.job) return openJobFrom(d.job, b.closest('[data-vt], .jl, .as, .card'));
-  if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; render(); if (desk()) daySheet(d.day); return; }
+  if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; return render(); }
   const act = d.act;
   if (act === 'back') { if (history.state?.job) { S.skipPop = true; history.back(); } closeJobAnimated(); }
   else if (act === 'wprev' || act === 'wnext') { S.week = addDays(S.week, act === 'wprev' ? -7 : 7); render(act === 'wprev' ? 'prev' : 'next'); }
