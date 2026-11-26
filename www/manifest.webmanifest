@@ -67,5 +67,55 @@
       "type": "image/png",
       "purpose": "any"
     }
+  ],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "shortcuts": [
+    {
+      "name": "This week",
+      "url": "./?go=week",
+      "icons": [
+        {
+          "src": "sc-week.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "url": "./?go=cal",
+      "icons": [
+        {
+          "src": "sc-cal.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "New job",
+      "url": "./?go=newjob",
+      "icons": [
+        {
+          "src": "sc-newjob.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Add a receipt",
+      "url": "./?go=receipt",
+      "icons": [
+        {
+          "src": "sc-receipt.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

@@ -500,8 +500,10 @@ body{background:var(--bg);min-height:100vh;min-height:100dvh}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.3s}
 /* ---------- Computer layout (wide windows). Phones never get the .desk class. ---------- */
 .tabbar .slg,.tabbar .sfoot,.cd .cn{display:none}
-html.desk body:has(#tabs:not([hidden])){padding-left:236px}
-html.desk .tabbar{left:0 !important;top:0 !important;bottom:0 !important;right:auto !important;width:236px !important;margin:0 !important;transform:none !important;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;padding:26px 14px 18px !important;border-radius:0 !important;border:0 !important;box-shadow:inset -1px 0 0 rgba(255,255,255,.06) !important;background:#0f1412 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
+html.desk{--side:236px}
+html.desk.slim{--side:78px}
+html.desk body:has(#tabs:not([hidden])){padding-left:var(--side)}
+html.desk .tabbar{left:0 !important;top:0 !important;bottom:0 !important;right:auto !important;width:var(--side) !important;margin:0 !important;transform:none !important;flex-direction:column;transition:width .2s ease;overflow:hidden;justify-content:flex-start;align-items:stretch;gap:4px;padding:26px 14px 18px !important;border-radius:0 !important;border:0 !important;box-shadow:inset -1px 0 0 rgba(255,255,255,.06) !important;background:#0f1412 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
 html.desk .tabbar button{flex:none;flex-direction:row;justify-content:flex-start;gap:14px;min-height:48px;padding:0 14px;font-size:15.5px;font-weight:650;color:#9aa69d;border-radius:12px;max-width:none}
 html.desk .tabbar button:hover{background:rgba(255,255,255,.05);color:#dfe7e1}
 html.desk .tabbar button svg{width:22px;height:22px}
@@ -516,8 +518,8 @@ html.desk .sfoot small{display:block;color:#8a958d;font-size:12.5px}
 html.desk .sfoot .av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800}
 html.desk .w{width:min(1280px,calc(100% - 72px))}
 html.desk .band .top>.logo{visibility:hidden}
-html.desk .fab{left:14px;right:auto;bottom:100px;width:208px;justify-content:center;z-index:11;min-height:50px}
-html.desk #cbar{left:236px}
+html.desk .fab{left:14px;right:auto;bottom:100px;width:calc(var(--side) - 28px);justify-content:center;z-index:11;min-height:50px}
+html.desk #cbar{left:var(--side)}
 html.desk button,html.desk a.btn,html.desk .cd{cursor:pointer}
 html.desk .jl:hover,html.desk .as:hover,html.desk .rc:hover{filter:brightness(.985)}
 html.desk .wk{justify-content:flex-start;gap:12px}
@@ -576,6 +578,61 @@ html.desk .ov.out .sheet{animation:deskOut .16s ease-in both}
 html.desk .sheet::before,html.desk .sheet .grab{display:none}
 html.desk .ov:has(.srch){align-items:flex-start;padding-top:11vh}
 html.desk .sheet.srch{height:auto;max-height:72vh;width:min(640px,100%)}
+
+/* Sidebar collapse */
+.tabbar .scol{display:none}
+html.desk .tabbar .scol{display:grid;place-items:center;position:absolute;top:calc(26px + var(--tbh,0px));right:12px;width:32px;height:32px;min-height:0;padding:0;border-radius:10px;color:#7d8a81;background:none}
+html.desk .tabbar .scol:hover{background:rgba(255,255,255,.07);color:#fff}
+html.desk .tabbar .scol svg{width:18px;height:18px;transition:transform .2s}
+html.desk.slim .tabbar .scol{position:static;margin:0 auto 14px}
+html.desk.slim .tabbar .scol svg{transform:rotate(180deg)}
+html.desk.slim .tabbar .slg{padding:0 0 10px;text-align:center}
+html.desk.slim .tabbar .slg .logo{font-size:15px}
+html.desk.slim .tabbar .slg .logo small{display:none}
+html.desk.slim .tabbar button[data-tab]{font-size:0;justify-content:center;padding:0;gap:0}
+html.desk.slim .tabbar .sfoot{padding:8px;justify-content:center;background:none}
+html.desk.slim .tabbar .sfoot>span:last-child{display:none}
+html.desk.slim .fab{font-size:0;gap:0;padding:0;width:50px;left:14px}
+/* Installed app: header runs into the title bar */
+#tbar{display:none}
+html.wco{--tbh:env(titlebar-area-height,33px)}
+html.wco #tbar{display:block;position:fixed;top:0;left:env(titlebar-area-x,0);width:env(titlebar-area-width,100%);height:var(--tbh);z-index:45;-webkit-app-region:drag;app-region:drag}
+html.wco .band{padding-top:calc(var(--sat) + 10px + var(--tbh))}
+html.wco.desk .tabbar{padding-top:calc(26px + var(--tbh)) !important}
+html.wco #cbar{top:var(--tbh)}
+html.wco #cbar:not(.show){opacity:0;pointer-events:none}
+html.wco.desk .jlist{top:calc(16px + var(--tbh));max-height:calc(100vh - 32px - var(--tbh))}
+html.wco .ov{padding-top:calc(32px + var(--tbh))}
+/* Drag to reschedule */
+html.desk .cstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:18px 0 0;font-size:13.5px;color:var(--mute)}
+html.desk .cstrip>span:first-child{margin-right:6px}
+html.desk .chip.dc{cursor:grab;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+html.desk .chip.dc:active{cursor:grabbing}
+html.desk main.board .as[draggable=true]{cursor:grab}
+html.desk .dragging{opacity:.45}
+html.desk main.board .day.dropok{box-shadow:inset 0 0 0 2px var(--green2),0 10px 26px -14px rgba(20,50,36,.5);background:color-mix(in srgb,var(--green2) 7%,var(--card))}
+html.desk main.board .as.dropok{box-shadow:inset 0 0 0 2px var(--green2);background:color-mix(in srgb,var(--green2) 9%,transparent)}
+/* Right-click menu */
+.ctx{position:fixed;z-index:60;min-width:230px;max-width:300px;background:var(--card);color:var(--ink);border-radius:14px;padding:6px;box-shadow:0 0 0 1px var(--line),0 18px 40px -12px rgba(0,0,0,.35);animation:ctxIn .12s ease-out both}
+.ctx .ctt{font-size:12.5px;font-weight:700;color:var(--mute);padding:8px 10px 6px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:inherit;font:inherit;font-size:14.5px;font-weight:600;padding:9px 10px;border-radius:9px;text-align:left;cursor:pointer}
+.ctx button:hover,.ctx button:focus-visible{background:var(--soft);outline:none}
+.ctx button svg{width:17px;height:17px;color:var(--green2);flex:none}
+.ctx hr{border:0;border-top:1px solid var(--line);margin:5px 6px}
+@keyframes ctxIn{from{opacity:0;transform:scale(.97)}}
+/* Calendar hover preview */
+.hov{position:fixed;z-index:50;width:300px;background:var(--card);color:var(--ink);border-radius:16px;padding:12px 14px;box-shadow:0 0 0 1px var(--line),0 20px 44px -14px rgba(0,0,0,.38);pointer-events:none;animation:ctxIn .14s ease-out both}
+.hov .hh{font-size:13px;font-weight:800;color:var(--mute);margin-bottom:6px}
+.hov .hr{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.hov .hr:first-of-type{border-top:0}
+.hov .ht{flex:none;width:62px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:1px}
+.hov b{font-size:14.5px;display:flex;align-items:center;gap:6px}
+.hov .hc{font-size:13px;color:var(--mute);margin-top:2px}
+.hov .hn{font-size:13px;color:var(--mute);margin:4px 0 0;line-height:1.4}
+/* Toast with Undo */
+.toast.act{pointer-events:auto;display:flex;align-items:center;gap:16px}
+.toast button{border:0;background:none;color:#5fd08e;font:inherit;font-weight:800;padding:2px 4px;cursor:pointer}
+html.desk .toast{bottom:32px;left:calc(50% + var(--side) / 2)}
 @keyframes deskIn{from{opacity:0;transform:translateY(14px) scale(.98)}}
 @keyframes deskOut{to{opacity:0;transform:translateY(8px) scale(.98)}}
 </style>
