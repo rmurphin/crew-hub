@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MPNW Crew">
 <title>MPNW Crew Hub</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest"><script>/* Computers get their own manifest: logo icons only (phones keep the plain map icon for Android's launch screen). */if(matchMedia('(pointer:fine)').matches&&!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent))document.querySelector('link[rel=manifest]').href='manifest-pc.webmanifest'</script>
 <link rel="icon" href="icon-pc-32.png" sizes="32x32"><link rel="icon" href="icon-pc-16.png" sizes="16x16">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
@@ -400,7 +400,7 @@ body{font-weight:450;-webkit-font-smoothing:antialiased;text-rendering:optimizeL
 #splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;color:#eef2ee;background:#0e1210;will-change:opacity;transition:opacity .6s ease;animation:splSafe .5s ease 5s forwards}
 #splash.out{opacity:0;pointer-events:none}
 @keyframes splSafe{to{opacity:0;visibility:hidden}}
-#splash .topo{top:0;height:100%;opacity:.01;will-change:opacity;-webkit-mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent);mask-image:radial-gradient(80% 62% at 50% 50%,#000 50%,transparent)}
+#splash .topo{top:0;height:100%;opacity:.01;will-change:opacity;-webkit-mask-image:none;mask-image:none}
 #splash .topo text,#splash .topo circle{display:none}
 .spl{position:relative;display:flex;flex-direction:column;align-items:center}
 .slogo{font-weight:900;font-size:min(20.9vw,130px);letter-spacing:-.02em;line-height:1;opacity:0;will-change:opacity,transform}
