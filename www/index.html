@@ -710,6 +710,14 @@ html.desk main.board .as.dropok{box-shadow:inset 0 0 0 2px var(--green2);backgro
 .toast button{border:0;background:none;color:#5fd08e;font:inherit;font-weight:800;padding:2px 4px;cursor:pointer}
 html.desk .toast{bottom:32px;left:calc(50% + var(--side) / 2)}
 .seg2.seg3{grid-template-columns:repeat(3,1fr)}
+/* Edit forms on a computer: two columns, long fields full width */
+html.desk .sheet.ed{width:min(760px,100%);display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:12px;align-content:start}
+html.desk .sheet.ed>*{grid-column:1/-1;margin-top:0;margin-bottom:0}
+html.desk .sheet.ed>label.fl:not(:has(textarea)){grid-column:auto}
+html.desk .sheet.ed>label.fl:has([data-ff=area],[data-ff=scope],[data-ff=product]){grid-column:1/-1}
+html.desk .sheet.ed>.btns{margin-top:6px}
+/* Dark mode: readable TBD tags in the scope table */
+@media(prefers-color-scheme:dark){html.desk .stbl .tbd{background:rgba(214,150,20,.2);color:#f0c46a}}
 @keyframes deskIn{from{opacity:0;transform:translateY(14px) scale(.98)}}
 @keyframes deskOut{to{opacity:0;transform:translateY(8px) scale(.98)}}
 </style>
