@@ -33,7 +33,23 @@
       } catch {
       }
     }
-  }, installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === !0, isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, mapsUrl = (a) => (a = String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`), linkify = (t) => esc(t).replace(/(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})/g, (m) => `<a href="tel:${m.replace(/\D/g, "")}">${m}</a>`).replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g, (m) => `<a href="mailto:${m}">${m}</a>`).replace(/\n/g, "<br>"), I = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`, NAV = I('<path d="M3 11l18-8-8 18-2-8-8-2z"/>'), PIN = I('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', 18), INFO = I('<path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6M9 18h4"/>'), GEAR = I('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), WARN = I('<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/>', 18), L = I('<path d="M15 5l-7 7 7 7"/>'), R = I('<path d="M9 5l7 7-7 7"/>'), SEARCH = I('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>'), LINK = I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 18);
+  }, THEME_RULES = [];
+  function applyTheme(mode) {
+    if (!THEME_RULES.length) for (let sh of document.styleSheets) {
+      let rules;
+      try {
+        rules = sh.cssRules;
+      } catch {
+        continue;
+      }
+      for (let r of rules) r.media && /prefers-color-scheme/.test(r.media.mediaText) && THEME_RULES.push([r, r.media.mediaText, /dark/.test(r.media.mediaText) ? "dark" : "light"]);
+    }
+    let forced = mode === "dark" || mode === "light";
+    for (let [r, orig, kind] of THEME_RULES) r.media.mediaText = forced ? kind === mode ? "all" : "not all" : orig;
+    document.documentElement.style.colorScheme = forced ? mode : "", document.documentElement.dataset.theme = forced ? mode : "auto";
+  }
+  applyTheme(store.get("theme"));
+  var installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === !0, isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, mapsUrl = (a) => (a = String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`), linkify = (t) => esc(t).replace(/(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})/g, (m) => `<a href="tel:${m.replace(/\D/g, "")}">${m}</a>`).replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g, (m) => `<a href="mailto:${m}">${m}</a>`).replace(/\n/g, "<br>"), I = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`, NAV = I('<path d="M3 11l18-8-8 18-2-8-8-2z"/>'), PIN = I('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', 18), INFO = I('<path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6M9 18h4"/>'), GEAR = I('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), WARN = I('<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/>', 18), L = I('<path d="M15 5l-7 7 7 7"/>'), R = I('<path d="M9 5l7 7-7 7"/>'), SEARCH = I('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>'), LINK = I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 18);
   document.body.insertAdjacentHTML("afterbegin", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><g id="topo-map">${topo_default}</g></defs></svg>`);
   var MARKS = [
     { n: "MT ST HELENS", f: "8,363 FT", x: 0, y: 0, main: !0 },
@@ -230,6 +246,9 @@
     <p class="empty" style="margin:0">Signed in as <b style="color:var(--ink)">${esc(S.me)}</b></p>
     <p class="empty" style="margin:4px 0 0;font-size:14px">Not you, or got a new phone? Ask Paul for your link.</p>
     <button class="btn go" data-act="refresh">Refresh schedule</button>
+    <div class="sec">Appearance</div>
+    <div class="seg2 seg3" role="group" aria-label="Appearance">${[["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button data-theme-set="${v}" aria-pressed="${(store.get("theme") || "auto") === v}">${l}</button>`).join("")}</div>
+    <p class="empty" style="margin:6px 0 0;font-size:13px">Auto matches your ${desk() ? "computer" : "phone"}'s setting. This only changes ${desk() ? "this computer" : "this phone"}.</p>
     ${installed() ? "" : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? "<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>" : "<li>In Chrome, tap the \u22EE menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>"}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? " \xB7 schedule " + new Date(S.data.updated).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""}</p></div></div>`);
@@ -1001,6 +1020,10 @@
     if (b.classList.contains("ov") && e.target !== b) return;
     if (d.act === "sclose") {
       closeSheet(), S.sAll = null;
+      return;
+    }
+    if (d.themeSet) {
+      buzz(), store.set("theme", d.themeSet === "auto" ? null : d.themeSet), applyTheme(d.themeSet), document.querySelectorAll("[data-theme-set]").forEach((x) => x.setAttribute("aria-pressed", x === b));
       return;
     }
     if (d.sq !== void 0)
