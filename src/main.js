@@ -123,9 +123,9 @@ function assignCard(r, label, small) {
   const j = jobById(r.job);
   if (!j) return `<div class="card${small ? ' sm' : ' hero'}"><div class="kick">${label}</div><div class="jn">No work</div>${r.notes ? `<div class="meta">${esc(r.notes)}</div>` : ''}</div>`;
   const others = r.crew.filter(n => n !== S.me);
-  return `<div class="card${small ? ' sm' : ' hero'}${!small && r.date === today() ? ' live' : ''}${S.changed.has(r.date) ? ' chg' : ''}" data-date="${r.date}">
+  return `<div class="card${small ? ' sm' : ' hero'}${!small && r.date === today() ? ' live' : ''}${S.changed.has(r.date) ? ' chg' : ''}" data-date="${r.date}" data-vt="${j.id}">
     <div class="kick">${label}${S.changed.has(r.date) ? '<strong class="ctag">Updated</strong>' : ''}<span class="time">${time12(r.start).replace(/ (AM|PM)$/, '<small>$1</small>')}</span></div>
-    <div class="jn">${esc(j.name)}</div>
+    <div class="jn">${jdot(j.id)}${esc(j.name)}</div>
     <div class="meta">${esc(j.gc ? 'GC: ' + j.gc : '')}</div>
     ${j.address ? `<div class="addr">${PIN}<span>${esc(j.address)}</span></div>` : ''}
     ${wxLine(j, r.date)}
@@ -152,7 +152,7 @@ function todayScreen() {
   let next = null;
   for (let i = 1; i <= 21 && !next; i++) { const d = addDays(k, i), m = mineOn(d); if (m.length) next = { d, r: m }; }
   const tmr = addDays(k, 1), tmrRows = mineOn(tmr), evening = new Date().getHours() >= 15 && tmrRows.length;
-  const todayBlock = mine.length ? mine.map(r => assignCard(r, evening ? 'Today' : 'Today', !!evening)).join('') : `<div class="card${evening ? ' sm' : ' hero'}"><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || 'No work today') : 'Not scheduled today'}</div><div class="empty">${off ? '' : 'Nothing on the schedule for you. Check with Riley if that seems wrong.'}</div></div>`;
+  const todayBlock = mine.length ? mine.map(r => assignCard(r, evening ? 'Today' : 'Today', !!evening)).join('') : `<div class="card calm${evening ? ' sm' : ' hero'}"><svg class="ctopo" viewBox="-30 -18 60 36" aria-hidden="true"><use href="#topo-map"/></svg><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || 'No work today') : 'Not scheduled today'}</div><div class="empty">${off ? '' : 'Nothing on the schedule for you. Check with Riley if that seems wrong.'}</div></div>`;
   const tmrLabel = fmtDay(tmr, { weekday: 'short', month: 'short', day: 'numeric' });
   $('#app').innerHTML = `<header class="band tall">${TOPO('today')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: 'long', month: 'long', day: 'numeric' })}</p>${updated()}</div></div></header>
@@ -165,12 +165,12 @@ function todayScreen() {
 }
 function daySection(d, rows) {
   return `<section class="day${d === today() ? ' now' : ''}${S.changed.has(d) ? ' chg' : ''}" data-date="${d}"><div class="dh">${fmtDay(d, { weekday: 'long' })}<span>${fmtDay(d, { month: 'short', day: 'numeric' })}</span>${S.changed.has(d) ? '<strong class="ctag">Updated</strong>' : ''}${d === today() ? '<em>Today</em>' : ''}</div>
-      ${rows.length ? rows.map(r => r.job ? `<button class="as${canEdit() ? ' ed' : ''}${r.crew.includes(S.me) ? ' me' : ''}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(' ', ' ')}</span><span class="n">${S.tab === 'cal' ? `<i class="sw" style="background:${jobColor(r.job)}"></i>` : ''}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ''}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ''}</button>`
-        : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || 'No work')}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || 'No work')}</div>`).join('') : `<div class="dn">No work scheduled</div>`}</section>`;
+      ${rows.length ? rows.map(r => r.job ? `<button class="as${canEdit() ? ' ed' : ''}${r.crew.includes(S.me) ? ' me' : ''}" ${canEdit() ? `data-edrow="${esc(JSON.stringify(r))}"` : `data-job="${r.job}"`}><span class="t">${time12(r.start).replace(' ', ' ')}</span><span class="n">${jdot(r.job)}${esc(jobById(r.job)?.name || r.job)}${pwPill(jobById(r.job))}</span><span class="c">${crewChips(r.crew)}${wxMini(jobById(r.job), r.date)}</span>${canEdit() ? `<span class="pen" aria-hidden="true">${PENCIL}</span>` : ''}${r.notes ? `<span class="x">${esc(r.notes)}</span>` : ''}</button>`
+        : canEdit() ? `<button class="dn dno" data-edrow="${esc(JSON.stringify(r))}">${esc(r.notes || 'No work')}<span class="pen" aria-hidden="true">${PENCIL}</span></button>` : `<div class="dn">${esc(r.notes || 'No work')}</div>`).join('') : `<div class="dn dcalm"><svg class="ctopo" viewBox="-20 -6 40 12" aria-hidden="true"><use href="#topo-map"/></svg><span>Open day</span></div>`}</section>`;
 }
 // Each job keeps one color everywhere on the calendar (bars, legend, day list). Mid tones read on light and dark.
 const PALETTE = ['#22a861', '#2f7be0', '#eba312', '#ec5b37', '#8b5cf6', '#0ea5a5', '#e0418f', '#7fae12', '#b5793a'];
-const jobColor = id => { const ids = [...new Set((S.data?.schedule || []).filter(r => r.job).map(r => r.job))].sort(); return PALETTE[Math.max(0, ids.indexOf(id)) % PALETTE.length]; };
+const jobColor = id => { const ids = [...new Set((S.data?.schedule || []).filter(r => r.job).map(r => r.job))].sort(); const i = ids.indexOf(id); return i < 0 ? '#8a938c' : PALETTE[i % PALETTE.length]; };
 function calScreen() {
   const m0 = S.month, first = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7);
   const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0), weeks = Math.ceil(((first.getDay() + 6) % 7 + lastDay.getDate()) / 7);
@@ -204,7 +204,7 @@ function weekScreen() {
 function jobsScreen() {
   const q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter(j => !q || (j.name + ' ' + j.gc + ' ' + j.address).toLowerCase().includes(q));
   const on = all.filter(j => j.status === 'In Progress'), up = all.filter(j => j.status !== 'In Progress').sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
-  const row = j => `<button class="jl" data-job="${j.id}"><div class="n">${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ''}</div>
+  const row = j => `<button class="jl" data-job="${j.id}"><div class="n">${jdot(j.id)}${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ''}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(' · '))}${j.start && j.status !== 'In Progress' && j.start >= today() ? ' · starts ' + fmtDay(j.start, { month: 'short', day: 'numeric', year: j.start.slice(0, 4) === today().slice(0, 4) ? undefined : 'numeric' }) : ''}</div></button>`;
   $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
@@ -220,11 +220,12 @@ function jobScreen() {
   const groups = []; for (const s of j.scope || []) { const g = groups[groups.length - 1]; if (g && g.area === s.area) g.items.push(s); else groups.push({ area: s.area, items: [s] }); }
   const spec = g => `<div class="sp"><div class="a">${esc(g.area)}</div>${g.items.map(step).join('')}</div>`;
   $('#app').innerHTML = `<header class="band">${TOPO('job')}<div class="w jp"><div class="jtop"><button class="back" data-act="back">${L}Back</button>${canEdit() ? `<button class="edb" data-act="jedit">${PENCIL}Edit job</button>` : ''}</div>
-    <h1>${esc(j.name)}</h1><p>${esc([j.gc && 'GC: ' + j.gc, j.type].filter(Boolean).join(' · '))}${j.status === 'In Progress' ? '<span class="pill on">In progress</span>' : ''}</p></div></header>
+    <h1>${jdot(j.id)}${esc(j.name)}</h1><p>${esc([j.gc && 'GC: ' + j.gc, j.type].filter(Boolean).join(' · '))}${j.status === 'In Progress' ? '<span class="pill on">In progress</span>' : ''}</p></div></header>
   <main class="w">
     <div class="card">${siteMap(j)}${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
       ${pwStrip(j)}
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ''}</div>
+    ${jobProgress(j)}
     ${j.geo && WX.data[geoKey(j)] ? `<div class="sec">Weather at the site</div><div class="card wxd">${[...Array(5)].map((_, n) => { const d = addDays(today(), n), w = wxFor(j, d); if (!w) return '';
       return `<div class="wd"><b>${n ? fmtDay(d, { weekday: 'short' }) : 'Today'}</b>${wxIcon(w.code, 24)}<span>${w.hi}° <i>${w.lo}°</i></span><small>${w.pop}%</small></div>`; }).join('')}</div>` : ''}
     <div class="sech"><div class="sec">Scope &amp; products</div>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ''}</div><div class="card">${groups.length ? groups.map(spec).join('') : '<div class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</div>'}</div>
@@ -556,7 +557,7 @@ function drawResults() {
   const groups = [];
   // Jobs
   const jobs = (d.jobs || []).filter(j => hits(ws, j.id, j.name, j.gc, j.address, j.type, j.status, j.crewNotes, j.site?.contact, j.site?.access));
-  groups.push(['Jobs', jobs.map(j => ({ icon: 'job', t: mark(j.name, ws), s: mark([j.id, j.gc, city(j.address)].filter(Boolean).join(' · '), ws), act: `data-sjob="${j.id}"` }))]);
+  groups.push(['Jobs', jobs.map(j => ({ icon: 'job', c: jobColor(j.id), t: mark(j.name, ws), s: mark([j.id, j.gc, city(j.address)].filter(Boolean).join(' · '), ws), act: `data-sjob="${j.id}"` }))]);
   // People, with their next assignment
   const people = (d.crew || []).filter(c => hits(ws, c.name, c.role));
   groups.push(['People', people.map(c => { const nx = (d.schedule || []).filter(r => r.job && r.date >= today() && r.crew.includes(c.name)).sort((a, b) => a.date.localeCompare(b.date))[0];
@@ -566,7 +567,7 @@ function drawResults() {
   const sched = (d.schedule || []).filter(r => r.date >= lo && r.date <= hi && hits(ws, jobById(r.job)?.name, r.job, r.crew.join(' '), r.notes, fmtDay(r.date, { weekday: 'long', month: 'long', day: 'numeric' }), fmtDay(r.date, { month: 'short', day: 'numeric' }), r.date === today() ? 'today' : r.date === addDays(today(), 1) ? 'tomorrow' : ''))
     .sort((a, b) => (a.date < today()) - (b.date < today()) || (a.date < today() ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))  // upcoming first, then most recent past
     .filter(r => { const k = (r.row || '') + '|' + (r.row ? '' : r.date); if (seen.has(k)) return false; seen.add(k); return true; });
-  groups.push(['Schedule', sched.map(r => ({ icon: 'day', t: r.job ? mark(jobById(r.job)?.name || r.job, ws) : mark(r.notes || 'Day off', ws),
+  groups.push(['Schedule', sched.map(r => ({ icon: 'day', c: r.job ? jobColor(r.job) : '', t: r.job ? mark(jobById(r.job)?.name || r.job, ws) : mark(r.notes || 'Day off', ws),
     s: `${fmtDay(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}${r.thru ? ' – ' + fmtDay(r.thru, { month: 'short', day: 'numeric' }) : ''}${r.job ? ' · ' + mark(r.crew.map(first).join(', '), ws) : ''}`, act: `data-sday="${r.date}"` }))]);
   // Products and colors on scope lines
   const lines = [];
@@ -579,7 +580,7 @@ function drawResults() {
     .map(r => ({ icon: 'rcpt', t: `${mark(r.vendor || r.cat, ws)} <b class="samt">${money(r.amount)}</b>`, s: mark([fmtDay(r.date, { month: 'short', day: 'numeric' }), jobById(r.job)?.name, r.card, canEdit() && r.by ? first(r.by) : ''].filter(Boolean).join(' · '), ws), act: `data-sjob="${r.job}" data-srcpt="1"` }))]);
   const any = groups.some(([, list]) => list.length);
   box.innerHTML = any ? groups.filter(([, list]) => list.length).map(([name, list]) => { const open = S.sAll === name, shown = open ? list : list.slice(0, 4);
-    return `<div class="sec">${name}<span class="scount">${list.length}</span></div><div class="card sres">${shown.map(x => `<button class="sr" ${x.act}><span class="si">${SR_ICONS[x.icon]}</span><span class="st2"><b>${x.t}</b><small>${x.s}</small></span></button>`).join('')}
+    return `<div class="sec">${name}<span class="scount">${list.length}</span></div><div class="card sres">${shown.map(x => `<button class="sx" ${x.act}><span class="si"${x.c ? ` style="--jc:${x.c}"` : ''}>${SR_ICONS[x.icon]}</span><span class="st2"><b>${x.t}</b><small>${x.s}</small></span></button>`).join('')}
       ${list.length > shown.length ? `<button class="lnk more" data-sall="${name}">Show all ${list.length}</button>` : ''}</div>`; }).join('')
     : `<p class="shint">Nothing matches "${esc(q)}". Check the spelling or try fewer words.</p>`;
 }
@@ -588,6 +589,115 @@ function searchGo(fn) {  // remember the search, close the sheet, then go
   if (q) { const r = (store.get('recentSearch') || []).filter(x => fold(x) !== fold(q)); r.unshift(q); store.set('recentSearch', r.slice(0, 6)); }
   closeSheet(); S.sAll = null; fn();
 }
+
+/* ---------- feel: page transitions, gestures, compact header, count-up ---------- */
+const vtOK = () => !!document.startViewTransition && motionOK.matches;
+const clearVT = () => document.querySelectorAll('[style*="view-transition-name"]').forEach(el => { el.style.viewTransitionName = ''; });
+const nameJobPage = () => { $('#app header.band') && ($('#app header.band').style.viewTransitionName = 'jobcard'); $('#app .jp h1') && ($('#app .jp h1').style.viewTransitionName = 'jobname'); };
+const nameSource = el => { if (!el) return; el.style.viewTransitionName = 'jobcard'; const n = el.querySelector('.jn, .n'); if (n) n.style.viewTransitionName = 'jobname'; };
+const sourceFor = id => [...document.querySelectorAll(`#app [data-vt="${id}"], #app .jl[data-job="${id}"], #app .as[data-job="${id}"]`)]
+  .find(el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
+// Card-to-page: the tapped card grows into the job page, and Back shrinks it back into place.
+function openJobFrom(id, src) {
+  if (!vtOK() || !src) return openJob(id);
+  clearVT(); nameSource(src);
+  const t = document.startViewTransition(() => { S.listY = scrollY; S.job = id; history.pushState({ job: id }, ''); scrollTo(0, 0); clearVT(); render('vt'); nameJobPage(); });
+  t.finished.finally(() => { clearVT(); countUp(); });
+}
+function closeJobAnimated() {
+  if (!vtOK() || S.dragBack) { S.dragBack = false; return closeJob(); }
+  const id = S.job; clearVT(); nameJobPage();
+  const t = document.startViewTransition(() => { clearVT(); S.job = null; render(); scrollTo(0, S.listY || 0); parallax(); nameSource(sourceFor(id)); });
+  t.finished.finally(clearVT);
+}
+// Count-up for the costs total when a job opens (editors only see it).
+function countUp() {
+  const el = $('#app .ctot b'); if (!el || !motionOK.matches || el.dataset.counted) return;
+  const end = +el.textContent.replace(/[^0-9.]/g, ''); if (!end) return; el.dataset.counted = 1;
+  const t0 = performance.now(), dur = 750, f = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); el.textContent = money(end * e); if (p < 1) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+// Compact header: once the big header scrolls away, a slim bar with the page title slides in.
+function cbarTitle() {
+  if (S.job) return jobById(S.job)?.name || '';
+  if (S.tab === 'week') return S.week === mondayOf(today()) ? 'This week' : `Week of ${fmtDay(S.week, { month: 'short', day: 'numeric' })}`;
+  if (S.tab === 'cal') return fromKey(S.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  if (S.tab === 'jobs') return 'Jobs';
+  return 'Today · ' + fmtDay(today(), { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function cbarUpdate() {
+  const bar = $('#cbar'), band = $('#app .band'); if (!bar) return;
+  const show = !!(band && S.me && S.data && scrollY > band.offsetHeight - bar.offsetHeight - 8);
+  bar.classList.toggle('show', show); bar.classList.toggle('job', !!S.job);
+}
+addEventListener('scroll', () => requestAnimationFrame(cbarUpdate), { passive: true });
+/* Gestures. Only finished touches count: a swipe the phone itself takes (system back) cancels the touch, so nothing happens twice. */
+let sw = null;
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1 || $('#sheet').firstChild) return;
+  const t = e.touches[0];
+  sw = { x: t.clientX, y: t.clientY, t: Date.now(), edge: !!S.job && t.clientX < 28, dx: 0 };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!sw || !sw.edge) return; const t = e.touches[0]; sw.dx = Math.max(0, t.clientX - sw.x);
+  if (sw.dx > 8 && Math.abs(t.clientY - sw.y) < sw.dx) { const a = $('#app'); a.style.transition = 'none'; a.style.transform = `translate3d(${sw.dx}px,0,0)`; a.style.opacity = 1 - Math.min(.35, sw.dx / 900); }
+}, { passive: true });
+document.addEventListener('touchcancel', () => { if (sw?.edge) { const a = $('#app'); a.style.transition = 'transform .25s ease, opacity .25s ease'; a.style.transform = ''; a.style.opacity = ''; } sw = null; }, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y, quick = Date.now() - sw.t < 650, s0 = sw; sw = null;
+  if (s0.edge) {  // swipe from the left edge on a job page goes back
+    const a = $('#app'), go = s0.dx > 90 || (s0.dx > 40 && quick);
+    a.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease';
+    if (go) { a.style.transform = 'translate3d(100%,0,0)'; a.style.opacity = '0'; setTimeout(() => { a.style.transition = 'none'; a.style.transform = ''; a.style.opacity = ''; S.dragBack = true; $('#app [data-act=back]')?.click(); }, 200); }
+    else { a.style.transform = ''; a.style.opacity = ''; }
+    return;
+  }
+  // left/right swipe on Week or Calendar changes the week or month
+  if (S.job || !['week', 'cal'].includes(S.tab) || !quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  if (e.target.closest('.band, .tabbar, .fab, input, select, textarea')) return;
+  $(`#app [data-act=${S.tab === 'week' ? 'w' : 'm'}${dx < 0 ? 'next' : 'prev'}]`)?.click();
+}, { passive: true });
+// Pull a pop-up down to close it (from its top bar, or anywhere once it's scrolled to the top).
+let sd = null;
+function onSheetMove(e) {
+  if (!sd) return; const dy = e.touches[0].clientY - sd.y;
+  if (dy <= 0 && !sd.on) return;
+  if (!sd.on && dy < 8) return; sd.on = true; e.preventDefault();
+  sd.dy = Math.max(0, dy); sd.sheet.style.transition = 'none'; sd.sheet.style.transform = `translate3d(0,${sd.dy}px,0)`;
+  sd.ov.style.backgroundColor = `rgba(8,12,10,${(.42 * (1 - Math.min(1, sd.dy / 500))).toFixed(3)})`;
+}
+document.addEventListener('touchstart', e => {
+  const sheet = e.target.closest('.sheet'); if (!sheet || e.touches.length !== 1) return;
+  const top = e.target.closest('.sh, .sbar') || e.touches[0].clientY - sheet.getBoundingClientRect().top < 34;
+  const inScroll = e.target.closest('#sres'), field = e.target.closest('input, textarea, select');
+  if (!top && (field || inScroll || sheet.scrollTop > 0)) return;
+  sd = { y: e.touches[0].clientY, t: Date.now(), sheet, ov: sheet.parentElement, dy: 0, on: false };
+  sd.ov.classList.remove('anim'); sheet.style.animation = 'none';
+  document.addEventListener('touchmove', onSheetMove, { passive: false });
+}, { passive: true });
+const sheetEnd = () => {
+  document.removeEventListener('touchmove', onSheetMove, { passive: false });
+  if (!sd) return; const s0 = sd; sd = null; if (!s0.on) { s0.sheet.style.animation = ''; return; }
+  const fast = s0.dy > 40 && Date.now() - s0.t < 280;
+  if (s0.dy > 120 || fast) {
+    s0.sheet.style.transition = 'transform .2s ease-in'; s0.sheet.style.transform = 'translate3d(0,100%,0)'; buzz();
+    setTimeout(() => s0.ov.querySelector('.sheet .done, .sheet [data-act$="close"]')?.click(), 170);
+  } else { s0.sheet.style.transition = 'transform .25s cubic-bezier(.2,.8,.2,1)'; s0.sheet.style.transform = ''; s0.ov.style.backgroundColor = ''; setTimeout(() => { s0.sheet.style.animation = ''; }, 260); }
+};
+document.addEventListener('touchend', sheetEnd, { passive: true }); document.addEventListener('touchcancel', sheetEnd, { passive: true });
+/* Job progress: every scheduled day for this job, done / today / coming up. */
+function jobProgress(j) {
+  const days = [...new Set((S.data.schedule || []).filter(r => r.job === j.id).map(r => r.date))].sort(); if (!days.length) return '';
+  const k = today(), done = days.filter(d => d < k).length, on = days.includes(k), total = days.length, next = days.find(d => d > k);
+  const f = d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' });
+  const head = on ? `Day ${done + 1} of ${total}` : done === total ? `Wrapped up ${fmtDay(days[total - 1], { month: 'short', day: 'numeric' })}` : done ? `${done} of ${total} days done` : `Starts ${f(days[0])}`;
+  const sub = on ? (next ? `Next: ${f(next)}` : 'Last scheduled day') : done === total ? `${total} day${total > 1 ? 's' : ''} on the schedule` : next ? `${done ? 'Next' : total + ' days scheduled'}${done ? ': ' + f(next) : ''}` : '';
+  const segs = total <= 40 ? days.map(d => `<i class="${d < k ? 'dn2' : d === k ? 'now' : ''}" title="${f(d)}"></i>`).join('')
+    : `<i class="dn2" style="flex:${done}"></i>${on ? '<i class="now"></i>' : ''}<i style="flex:${total - done - (on ? 1 : 0)}"></i>`;
+  return `<div class="card prog"><div class="ph"><b>${head}</b><span>${sub}</span></div><div class="pbar">${segs}</div>
+    <div class="pends"><span>${fmtDay(days[0], { month: 'short', day: 'numeric' })}</span><span>${fmtDay(days[total - 1], { month: 'short', day: 'numeric' })}</span></div></div>`;
+}
+const jdot = id => `<i class="sw" style="background:${jobColor(id)}"></i>`;
 
 /* ---------- render & events ---------- */
 /* ---------- motion: the header map drifts slower than the page, and cards rise into place as they scroll into view ---------- */
@@ -655,11 +765,13 @@ function render(nav) {
   if (fab) a.classList.add('has-fab');
   if (nav && motionOK.matches) { void a.offsetWidth; a.classList.add('nv-' + nav); clearTimeout(navT); navT = setTimeout(() => { a.classList.remove('nv-' + nav); }, 420); }
   if (nav) motion(); else { io?.disconnect(); parallax(); }
+  const cbt = $('#cbt'); if (cbt) cbt.textContent = cbarTitle(); cbarUpdate();
+  if (nav === 'push') countUp();
 }
 // Opening a job adds a history step, so the phone's own back button or swipe closes it.
 function openJob(id) { S.listY = scrollY; S.job = id; history.pushState({ job: id }, ''); scrollTo(0, 0); render('push'); }
 function closeJob() { S.job = null; render('pop'); scrollTo(0, S.listY || 0); parallax(); }
-addEventListener('popstate', () => { if (S.skipPop) { S.skipPop = false; return; } if (S.job) closeJob(); });
+addEventListener('popstate', () => { if (S.skipPop) { S.skipPop = false; return; } if (S.job) closeJobAnimated(); });
 function render2() {
   if (S.key && !S.bad && !S.offline && !S.data) return skeletonScreen();
   if (!S.key || S.bad || !S.me || !S.data) return linkScreen();
@@ -691,10 +803,10 @@ document.addEventListener('click', e => {
   if (d.edmode) { S.ed.off = d.edmode === 'off'; S.ed.err = ''; return drawEditor(); }
   if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
   if (d.tab) { buzz(); if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
-  if (d.job) return openJob(d.job);
+  if (d.job) return openJobFrom(d.job, b.closest('[data-vt], .jl, .as, .card'));
   if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; return render(); }
   const act = d.act;
-  if (act === 'back') { if (history.state?.job) { S.skipPop = true; history.back(); } closeJob(); }
+  if (act === 'back') { if (history.state?.job) { S.skipPop = true; history.back(); } closeJobAnimated(); }
   else if (act === 'wprev' || act === 'wnext') { S.week = addDays(S.week, act === 'wprev' ? -7 : 7); render(act === 'wprev' ? 'prev' : 'next'); }
   else if (act === 'mprev' || act === 'mnext' || act === 'mnow') {
     const f = fromKey(S.month); if (act === 'mnow') S.month = today().slice(0, 8) + '01'; else { f.setMonth(f.getMonth() + (act === 'mprev' ? -1 : 1)); S.month = keyOf(f); }
