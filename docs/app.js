@@ -43,15 +43,25 @@
     { n: "VANCOUVER", x: -36, y: -62, town: !0 },
     { n: "PORTLAND", x: -40, y: -77, town: !0 },
     { n: "COLUMBIA RIVER", x: 2, y: -71.5, river: !0 }
-  ], SPOTS = { today: { x: "55%", y: 100, k: 2.6, few: 1 }, bar: { x: "40%", y: 30, k: 2.6, adams: "b", few: 1 }, job: { x: "47%", y: 24, k: 2.6, adams: "b", few: 1 }, splash: { x: "50%", y: () => Math.round(innerHeight * 0.5), k: 2.6, few: 1 }, link: { x: "47%", y: () => Math.round(Math.max(510, innerHeight * 0.64)), k: 2.6 } }, TOPO = (spot) => {
-    let { x, k, adams = "a", few } = SPOTS[spot], y = typeof SPOTS[spot].y == "function" ? SPOTS[spot].y() : SPOTS[spot].y, G = "#9cc4a8", W = "#eef2ee", t = (px, py, txt, size, wt, fill, op, end, more = "") => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ""}${more}>${txt}</text>`, marks = MARKS.filter((m) => !few || m.main || m.side).map((m) => {
+  ], DESK_MAP = { ok: !1, loading: !1 };
+  function loadDeskMap() {
+    DESK_MAP.ok || DESK_MAP.loading || !desk() || (DESK_MAP.loading = !0, fetch("topo-desk.svg").then((r) => r.ok ? r.text() : Promise.reject()).then((svg) => {
+      document.querySelector("#topo-map").insertAdjacentHTML("afterend", `<g id="topo-desk">${svg}</g>`), DESK_MAP.ok = !0, S.data && !S.splashHold && render();
+    }).catch(() => {
+      DESK_MAP.loading = !1;
+    }));
+  }
+  var SPOTS = { today: { x: "55%", y: 100, k: 2.6, few: 1 }, bar: { x: "40%", y: 30, k: 2.6, adams: "b", few: 1 }, job: { x: "47%", y: 24, k: 2.6, adams: "b", few: 1 }, splash: { x: "50%", y: () => Math.round(innerHeight * 0.5), k: 2.6, few: 1 }, link: { x: "47%", y: () => Math.round(Math.max(510, innerHeight * 0.64)), k: 2.6 } }, TOPO = (spot) => {
+    let { x, k, adams = "a", few } = SPOTS[spot], y = typeof SPOTS[spot].y == "function" ? SPOTS[spot].y() : SPOTS[spot].y, G = "#9cc4a8", W = "#eef2ee", wide = desk() && spot !== "splash" && spot !== "link" && DESK_MAP.ok;
+    wide ? (k = 2.6 * Math.max(1, (innerWidth - 236) / 2e3), (spot === "bar" || spot === "job") && (x = "68%")) : desk() && spot === "splash" && (k = 2.6 * Math.min(2.4, Math.max(1, innerWidth / 820)));
+    let t = (px, py, txt, size, wt, fill, op, end, more = "") => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ""}${more}>${txt}</text>`, marks = MARKS.filter((m) => !few || m.main || m.side).map((m) => {
       let px = m.x * k, py = -m.y * k;
       if (m.town) return `<circle cx="${px}" cy="${py}" r="2.2" fill="${W}" opacity=".5"/>` + t(px + 5, py + 3.5, m.n, 9, 700, W, 0.5);
       if (m.river) return t(px, py, m.n, 9, 650, "#8fb9c7", 0.65, !1, ' font-style="italic"');
       let s = m.main ? 5.5 : 4.2, col = m.main ? G : W, op = m.main ? 0.9 : 0.55, side = m.side === "adams" ? adams : "r", tri = `<path d="M${px} ${py - s * 1.2}L${px + s} ${py + s * 0.6}L${px - s} ${py + s * 0.6}Z" fill="${m.main ? col : "none"}" stroke="${col}" stroke-width="1.3" opacity="${op}"/>`, [nx, ny, fy, end] = side === "r" ? [px + s + 5, py + 1, py + 11, !1] : side === "a" ? [px + s, py - s - 15, py - s - 6, !0] : [px + s, py + s + 12, py + s + 21, !0];
       return tri + t(nx, ny, m.n, m.main ? 10.5 : 9, m.main ? 800 : 750, col, op, end) + t(nx, fy, m.f, m.main ? 8.5 : 8, 600, col, op * 0.8, end);
     }).join("");
-    return `<svg class="topo" aria-hidden="true" focusable="false"><svg x="${x}" y="${y}" overflow="visible"><g transform="scale(${k})"><use href="#topo-map"/></g>${marks}</svg></svg>`;
+    return `<svg class="topo${wide ? " wide" : ""}" aria-hidden="true" focusable="false"><svg x="${x}" y="${y}" overflow="visible"><g transform="scale(${k})"><use href="#${wide ? "topo-desk" : "topo-map"}"/></g>${marks}</svg></svg>`;
   }, LOGO = '<div class="logo">MP<i>NW</i><small>CREW HUB</small></div>', urlKey = new URLSearchParams(location.search).get("u");
   urlKey && urlKey !== store.get("key") && (store.set("key", urlKey), store.set("me", null), store.set("data", null));
   var S = { key: urlKey || store.get("key"), bad: !1, data: store.get("data"), me: store.get("me"), tab: "today", week: mondayOf(today()), month: today().slice(0, 8) + "01", sel: today(), mine: !0, q: "", job: null, offline: !1, changed: new Set(Object.keys(store.get("changed") || {})), glowDone: /* @__PURE__ */ new Set() }, jobById = (id) => (S.data?.jobs || []).find((j) => j.id === id), rowsOn = (k) => (S.data?.schedule || []).filter((r) => r.date === k).sort((a, b) => (a.start || "99").localeCompare(b.start || "99")), mineOn = (k) => rowsOn(k).filter((r) => r.crew.includes(S.me)), cleanAddr = (a) => String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), city = (a) => {
@@ -162,10 +172,10 @@
   function jobsScreen() {
     $("#app").innerHTML = jobsHTML();
   }
-  function jobsHTML() {
+  function jobsHTML(listOnly) {
     let { on, up } = jobLists(), row = (j) => `<button class="jl${desk() && j.id === S.job ? " sel" : ""}" data-job="${j.id}"><div class="n">${jdot(j.id)}${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ""}</div>
-    <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(" \xB7 "))}${j.start && j.status !== "In Progress" && j.start >= today() ? " \xB7 starts " + fmtDay(j.start, { month: "short", day: "numeric", year: j.start.slice(0, 4) === today().slice(0, 4) ? void 0 : "numeric" }) : ""}</div></button>`;
-    return `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
+    <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(" \xB7 "))}${j.start && j.status !== "In Progress" && j.start >= today() ? " \xB7 starts " + fmtDay(j.start, { month: "short", day: "numeric", year: j.start.slice(0, 4) === today().slice(0, 4) ? void 0 : "numeric" }) : ""}</div></button>`, list = `${on.length ? `<div class="sec">In progress</div>${on.map(row).join("")}` : ""}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join("")}` : ""}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ""}`;
+    return listOnly ? list : `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
   <main class="w">${on.length ? `<div class="sec">In progress</div>${on.map(row).join("")}` : ""}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join("")}` : ""}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ""}</main>`;
   }
@@ -174,14 +184,13 @@
       let { on, up } = jobLists(), all = S.data?.jobs || [];
       S.job = (on[0] || up[0] || all.find((j) => j.status === "In Progress") || all[0])?.id || null;
     }
-    let list = jobsHTML();
-    if (!S.job) {
-      $("#app").innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane"><p class="empty" style="padding:48px 32px">No jobs yet.</p></div></div>`;
-      return;
+    let head = `<header class="band djh">${TOPO("bar")}<div class="w"><div class="top"><div class="djt"><h1>Jobs</h1><label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div><span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div></div></header>`, pane = '<p class="empty" style="padding:40px 8px">No jobs yet.</p>';
+    if (S.job) {
+      jobScreen();
+      let a = $("#app"), q = (s) => a.querySelector(s)?.outerHTML || "";
+      pane = `<div class="jhd"><div>${q(".jp h1")}${q(".jp > p")}</div>${q(".edb")}</div>${q("main")}`;
     }
-    jobScreen();
-    let page = $("#app").innerHTML;
-    $("#app").innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane">${page}</div></div>`;
+    $("#app").innerHTML = `${head}<div class="w split"><aside class="jlist">${jobsHTML(!0)}</aside><section class="pane" aria-label="Job details">${pane}</section></div>`;
   }
   function jobScreen() {
     let j = jobById(S.job);
@@ -771,8 +780,9 @@
   }
   var deskMQ = matchMedia("(min-width: 1100px)"), desk = () => deskMQ.matches, setDesk = () => document.documentElement.classList.toggle("desk", desk());
   setDesk();
+  loadDeskMap();
   deskMQ.addEventListener?.("change", () => {
-    setDesk(), S.data && !S.splashHold && (!desk() && S.tab === "jobs" && (S.job = null), render());
+    setDesk(), loadDeskMap(), S.data && !S.splashHold && (!desk() && S.tab === "jobs" && (S.job = null), render());
   });
   function sideBar() {
     let nav = $("#tabs");
@@ -874,7 +884,11 @@
     if (e.target.id === "q") {
       S.q = e.target.value;
       let pos = e.target.selectionStart;
-      desk() && $(".jlist") ? $(".jlist").innerHTML = jobsHTML() : jobsScreen();
+      if (desk() && $(".jlist")) {
+        $(".jlist").innerHTML = jobsHTML(!0);
+        return;
+      }
+      jobsScreen();
       let q = $("#q");
       q.focus(), q.setSelectionRange(pos, pos);
     }
