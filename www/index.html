@@ -498,6 +498,75 @@ body{background:var(--bg);min-height:100vh;min-height:100dvh}
 ::view-transition-group(jobcard),::view-transition-group(jobname){animation-duration:.42s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
 ::view-transition-old(jobcard),::view-transition-new(jobcard){height:100%;object-fit:cover;object-position:top}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.3s}
+/* ---------- Computer layout (wide windows). Phones never get the .desk class. ---------- */
+.tabbar .slg,.tabbar .sfoot,.cd .cn{display:none}
+html.desk body:has(#tabs:not([hidden])){padding-left:236px}
+html.desk .tabbar{left:0 !important;top:0 !important;bottom:0 !important;right:auto !important;width:236px !important;margin:0 !important;transform:none !important;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:4px;padding:26px 14px 18px !important;border-radius:0 !important;border:0 !important;box-shadow:inset -1px 0 0 rgba(255,255,255,.06) !important;background:#0f1412 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
+html.desk .tabbar button{flex:none;flex-direction:row;justify-content:flex-start;gap:14px;min-height:48px;padding:0 14px;font-size:15.5px;font-weight:650;color:#9aa69d;border-radius:12px;max-width:none}
+html.desk .tabbar button:hover{background:rgba(255,255,255,.05);color:#dfe7e1}
+html.desk .tabbar button svg{width:22px;height:22px}
+html.desk .tabbar button[aria-current=page]{background:rgba(255,255,255,.09);color:#fff}
+html.desk .tabbar button[aria-current=page] svg{color:#5fd08e}
+html.desk .tbi{display:none !important}
+html.desk .tabbar .slg{display:block;padding:0 12px 28px;color:#fff}
+html.desk .tabbar .slg .logo{font-size:30px}
+html.desk .tabbar .sfoot{display:flex;margin-top:auto;gap:12px;align-items:center;padding:12px;border-radius:14px;background:rgba(255,255,255,.04);color:#e4ebe6}
+html.desk .sfoot b{display:block;font-size:15px}
+html.desk .sfoot small{display:block;color:#8a958d;font-size:12.5px}
+html.desk .sfoot .av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800}
+html.desk .w{width:min(1280px,calc(100% - 72px))}
+html.desk .band .top>.logo{visibility:hidden}
+html.desk .fab{left:14px;right:auto;bottom:100px;width:208px;justify-content:center;z-index:11;min-height:50px}
+html.desk #cbar{left:236px}
+html.desk button,html.desk a.btn,html.desk .cd{cursor:pointer}
+html.desk .jl:hover,html.desk .as:hover,html.desk .rc:hover{filter:brightness(.985)}
+html.desk .wk{justify-content:flex-start;gap:12px}
+html.desk .wk b{order:-1;text-align:left;font-size:24px;margin-right:auto;min-width:220px}
+/* Today and the job page: two columns */
+html.desk .tcols,html.desk .jcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 26px;align-items:start}
+html.desk .jcols>.col>:first-child{margin-top:16px}
+html.desk .jcols>.col>.sec:first-child,html.desk .jcols>.col>.sech:first-child{margin-top:18px}
+html.desk .tcols>.col:last-child>:first-child.sec{margin-top:0}
+html.desk .tcols>.col:last-child>.rbtn:first-child{margin-top:0}
+/* Week: one column per day */
+html.desk main.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:16px;align-items:start;padding:22px 0 40px}
+html.desk main.board .day{margin:0;min-width:0}
+html.desk main.board .day .dh{position:static}
+html.desk main.board .as{display:flex;flex-direction:column;align-items:flex-start;gap:6px;position:relative;padding-right:40px}
+html.desk main.board .as .pen{position:absolute;top:14px;right:12px;margin:0}
+html.desk main.board .as .c{width:100%;flex-wrap:wrap;justify-content:space-between}
+/* Calendar: job names in the days, chosen day on the right */
+html.desk .calw{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0 26px;align-items:start}
+html.desk .calw>*{grid-column:2}
+html.desk .calw>.cal{grid-column:1;grid-row:1 / span 20}
+html.desk .calw>.day:first-of-type{margin-top:12px}
+html.desk .cg{gap:6px}
+html.desk .cd{min-height:104px;align-items:stretch;padding:8px 8px 8px}
+html.desk .cd b{align-self:flex-start}
+html.desk .cd .bars{display:none}
+html.desk .cd .cn{display:flex;flex-direction:column;gap:3px;width:100%}
+html.desk .cd .cn i{font-style:normal;font-size:12px;font-weight:700;line-height:1.25;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,var(--c) 16%,transparent);box-shadow:inset 3px 0 0 var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+html.desk .cd .cn small{font-size:11.5px;color:var(--mute);text-align:left;padding-left:6px}
+html.desk .cd.out .cn{opacity:.6}
+/* Jobs: list on the left, chosen job on the right */
+html.desk .split{display:grid;grid-template-columns:410px minmax(0,1fr);align-items:start}
+html.desk .jlist{position:sticky;top:0;height:100vh;overflow:auto;box-shadow:inset -1px 0 0 var(--line);background:var(--bg);overscroll-behavior:contain}
+html.desk .jlist .w,html.desk .pane .w{width:auto;margin:0 28px}
+html.desk .jlist .band{padding-bottom:16px}
+html.desk .jlist .band svg text{display:none}
+html.desk .jlist main.w{padding-bottom:30px}
+html.desk .jl.sel{box-shadow:inset 0 0 0 2px var(--green2),0 8px 20px -12px rgba(20,50,36,.5)}
+html.desk .pane .back{visibility:hidden}
+html.desk .pane main.w{padding-bottom:40px}
+/* Pop-ups open as centered windows */
+html.desk .ov{align-items:center;padding:32px}
+html.desk .sheet{width:min(580px,100%);border-radius:24px;max-height:min(86vh,900px);padding:22px 24px 24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.5);animation:deskIn .22s cubic-bezier(.2,.85,.25,1) both}
+html.desk .ov.out .sheet{animation:deskOut .16s ease-in both}
+html.desk .sheet::before,html.desk .sheet .grab{display:none}
+html.desk .ov:has(.srch){align-items:flex-start;padding-top:11vh}
+html.desk .sheet.srch{height:auto;max-height:72vh;width:min(640px,100%)}
+@keyframes deskIn{from{opacity:0;transform:translateY(14px) scale(.98)}}
+@keyframes deskOut{to{opacity:0;transform:translateY(8px) scale(.98)}}
 </style>
 </head>
 <body>
