@@ -282,7 +282,8 @@
     <div class="sec">Appearance</div>
     <div class="seg2 seg3" role="group" aria-label="Appearance">${[["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button data-theme-set="${v}" aria-pressed="${(store.get("theme") || "auto") === v}">${l}</button>`).join("")}</div>
     <p class="empty" style="margin:6px 0 0;font-size:13px">Auto matches your ${desk() ? "computer" : "phone"}'s setting. This only changes ${desk() ? "this computer" : "this phone"}.</p>
-    ${installed() ? "" : `<div class="sec">Put this on your home screen</div>
+    ${installed() ? "" : desk() ? `<div class="sec">Install it on this computer</div>
+    <ol><li>In Chrome, click the install icon at the right end of the address bar (or \u22EE menu, <b>Cast, save, and share</b>, <b>Install page as app</b>).</li><li>Open MPNW Crew Hub from the Start menu, taskbar or desktop.</li></ol>` : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? "<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>" : "<li>In Chrome, tap the \u22EE menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>"}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? " \xB7 schedule " + new Date(S.data.updated).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""}</p></div></div>`);
   }
