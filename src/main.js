@@ -111,6 +111,7 @@ async function load(manual) {
     else { S.bad = false; S.me = d.me; fresh = trackChanges(S.data, d); S.data = d; store.set('me', d.me); store.set('data', d); }
   } catch (e) { S.offline = true; }
   render(); loadWeather();
+  if (fresh.length && document.hidden && navigator.setAppBadge) { S.badge = (S.badge || 0) + fresh.length; navigator.setAppBadge(S.badge).catch(() => {}); }
   if (fresh.length) toast('Schedule updated: ' + (fresh.length > 3 ? fresh.length + ' days changed' : fresh.map(d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ')));
   else if (manual) toast(S.offline ? 'No signal. Showing the last schedule.' : 'Schedule is up to date.');
 }
@@ -192,7 +193,7 @@ function calScreen() {
     const d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter(r => r.job), off = rows.find(r => !r.job), out = d.slice(0, 7) !== mm;
     const cls = ['cd', jobs.some(r => r.crew.includes(S.me)) && 'mine', out && 'out', d === today() && 'tdy', d === S.sel && 'sel', off && 'off', S.changed.has(d) && 'chg', i % 7 > 4 && 'we', d < today() && 'past'].filter(Boolean).join(' ');
     const label = `${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${off ? esc(off.notes || 'off') : jobs.length ? jobs.map(r => esc(jobById(r.job)?.name || r.job)).join(', ') : 'nothing scheduled'}`;
-    return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ''}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map(r => `<i style="background:${jobColor(r.job)}"></i>`).join('')}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ''}</span><span class="cn">${jobs.slice(0, 3).map(r => `<i style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join('')}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ''}</span>`}</button>`;
+    return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ''}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map(r => `<i style="background:${jobColor(r.job)}"></i>`).join('')}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ''}</span><span class="cn">${jobs.slice(0, 3).map(r => `<i data-cj="${r.job}" style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join('')}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ''}</span>`}</button>`;
   }).join('');
   const seen = [...new Set((S.data?.schedule || []).filter(r => r.job && r.date.startsWith(mm)).map(r => r.job))];
   const legend = seen.map(id => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join('');
@@ -329,7 +330,7 @@ function drawEditor() {
   const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(l)}</option>`;
   showSheet(`<div class="ov" data-act="edclose"><div class="sheet ed" role="dialog" aria-modal="true" aria-labelledby="edH">
     <div class="sh"><h2 id="edH">${e.row ? 'Edit schedule' : 'Add to schedule'}</h2><button class="done" data-act="edclose">Cancel</button></div>
-    ${e.row && e.thru ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: 'short', month: 'short', day: 'numeric' })} to ${fmtDay(e.thru, { weekday: 'short', month: 'short', day: 'numeric' })}. Changes apply to every day in it.</p>` : ''}
+    ${e.note ? `<p class="hint">${e.note}</p>` : ''}${e.row && e.thru && !e.note ? `<p class="hint">This row covers ${fmtDay(e.from, { weekday: 'short', month: 'short', day: 'numeric' })} to ${fmtDay(e.thru, { weekday: 'short', month: 'short', day: 'numeric' })}. Changes apply to every day in it.</p>` : ''}
     <div class="seg2"><button data-edmode="job" aria-pressed="${!e.off}">Job</button><button data-edmode="off" aria-pressed="${e.off}">Day off</button></div>
     <div class="f2"><label class="fl">${e.multi ? 'First day' : 'Date'}<input type="date" data-f="from" value="${e.from}"></label>
       ${e.off ? '' : e.multi ? `<label class="fl">Last day<input type="date" data-f="thru" value="${e.thru}"></label>` : '<span></span>'}</div>
@@ -802,6 +803,7 @@ function render(nav) {
   if (nav) motion(); else { io?.disconnect(); parallax(); }
   const cbt = $('#cbt'); if (cbt) cbt.textContent = cbarTitle(); cbarUpdate();
   if (nav === 'push') countUp();
+  deskAfter(); goShortcut();
 }
 // Computer layout: wide windows get a sidebar, a week board, a split Jobs view and centered pop-ups.
 const deskMQ = matchMedia('(min-width: 1100px)'), desk = () => deskMQ.matches;
@@ -810,13 +812,148 @@ setDesk(); loadDeskMap(); deskMQ.addEventListener?.('change', () => { setDesk();
 function sideBar() {
   const nav = $('#tabs'); if (!nav.querySelector('.slg')) { nav.insertAdjacentHTML('afterbegin', `<div class="slg" aria-hidden="true">${LOGO}</div>`); nav.insertAdjacentHTML('beforeend', '<div class="sfoot"></div>'); }
   nav.querySelector('.sfoot').innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? 'Can edit' : 'Crew'}</small></span>`;
+  if (!nav.querySelector('.scol')) nav.querySelector('.slg').insertAdjacentHTML('afterend', `<button class="scol" data-act="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar">${I('<path d="M15 6l-6 6 6 6"/>', 18)}</button>`);
+  nav.querySelectorAll('button[data-tab]').forEach(b => { b.title = b.textContent.trim(); });
 }
+const setSlim = on => { document.documentElement.classList.toggle('slim', on); const b = $('#tabs .scol'); if (b) { b.title = b.ariaLabel = on ? 'Expand the sidebar' : 'Collapse the sidebar'; } };
+setSlim(!!store.get('slim'));
+// Installed on a computer: the dark header runs up into the window's title bar.
+const wcoMQ = matchMedia('(display-mode: window-controls-overlay)');
+const setWco = () => document.documentElement.classList.toggle('wco', wcoMQ.matches);
+setWco(); wcoMQ.addEventListener?.('change', setWco);
+document.body.insertAdjacentHTML('afterbegin', '<div id="tbar" aria-hidden="true"></div>');
 // Keyboard on a computer: / opens search, Escape closes a pop-up.
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if (e.key === '/' && !typing && !$('#sheet .ov') && S.data) { e.preventDefault(); $('#app [data-act=search]')?.click(); }
+  else if (e.key === 'Escape' && $('#ctx')) { e.preventDefault(); ctxClose(); }
   else if (e.key === 'Escape' && $('#sheet .ov')) { e.preventDefault(); $('#sheet .sh .done, #sheet [data-act=sclose]')?.click(); }
 });
+/* ---------- computer extras: drag to reschedule, right-click menus, calendar previews, taskbar shortcuts ---------- */
+// One schedule change without opening the editor, with an Undo on the message.
+async function schedPost(body, msg, undo) {
+  toast('Saving…');
+  try {
+    const b = { u: S.key, ...body };
+    const res = __PREVIEW__ ? previewWrite(b) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
+    if (!res.ok) throw new Error(res.error || 'Could not save.');
+    if (__PREVIEW__) render(); else await load();
+    toast(msg, undo ? { label: 'Undo', fn: () => schedPost(undo, 'Change undone.') } : null);
+  } catch (err) { toast(S.offline || !navigator.onLine ? 'No signal. Nothing was saved.' : err.message); if (!__PREVIEW__) load(); }
+}
+const itemOf = (r, over = {}) => ({ date: r.from || r.date, thru: r.thru || '', job: r.job, start: r.start, crew: [...r.crew], notes: r.notes || '', ...over });
+const multiDay = r => !!(r.thru && r.thru !== (r.from || r.date));
+const short = d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' });
+function moveRow(r, to) {
+  const name = jobById(r.job)?.name || r.job;
+  if (multiDay(r)) {  // a multi-day row: shift the whole run, but let them check it first
+    const delta = Math.round((fromKey(to) - fromKey(r.date)) / 864e5);
+    editor(r); S.ed.from = addDays(r.from || r.date, delta); S.ed.thru = addDays(r.thru, delta);
+    S.ed.note = `${esc(name)} runs ${short(r.from || r.date)} to ${short(r.thru)}. Moving it shifts every day by ${Math.abs(delta)} day${Math.abs(delta) === 1 ? '' : 's'}. Check the dates and save.`; return drawEditor();
+  }
+  schedPost({ action: 'update', row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r, { date: to }) }, `Moved ${name} to ${short(to)}.`,
+    { action: 'update', row: r.row, expect: { date: to, job: r.job }, item: itemOf(r) });
+}
+function addCrew(r, who) {
+  if (r.crew.includes(who)) return toast(`${first(who)} is already on it.`);
+  const name = jobById(r.job)?.name || r.job;
+  if (multiDay(r)) { editor(r); S.ed.crew.push(who); S.ed.note = `${esc(name)} runs ${short(r.from || r.date)} to ${short(r.thru)}. ${esc(first(who))} will be added to every day. Save to confirm.`; return drawEditor(); }
+  schedPost({ action: 'update', row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r, { crew: [...r.crew, who] }) }, `Added ${first(who)} to ${name}, ${short(r.date)}.`,
+    { action: 'update', row: r.row, expect: { date: r.date, job: r.job }, item: itemOf(r) });
+}
+function dupRow(r, d) {
+  let nd = addDays(d, 1); while ([0, 6].includes(fromKey(nd).getDay())) nd = addDays(nd, 1);
+  schedPost({ action: 'add', item: itemOf(r, { date: nd, thru: '' }) }, `Copied ${jobById(r.job)?.name || r.job} to ${short(nd)}.`);
+}
+function deskAfter() {
+  ctxClose(); hovHide();
+  if (!desk() || !canEdit() || S.tab !== 'week' || S.job) return;
+  const board = $('main.board'); if (!board) return;
+  board.querySelectorAll('.as[data-edrow]').forEach(b => { const r = JSON.parse(b.dataset.edrow); if (r.job) b.draggable = true; });
+  board.insertAdjacentHTML('beforebegin', `<div class="w cstrip"><span>Drag a job to another day, or drag a name onto a job</span>${(S.data?.crew || []).map(c => `<span class="chip dc" draggable="true" data-dragcrew="${esc(c.name)}"><i class="av" style="background:${avColor(c.name)}">${esc(first(c.name)[0] || '')}</i>${esc(first(c.name))}</span>`).join('')}</div>`);
+}
+const dropClear = () => document.querySelectorAll('.dropok').forEach(x => x.classList.remove('dropok'));
+document.addEventListener('dragstart', e => {
+  const row = e.target.closest?.('.board .as[data-edrow]'), chip = e.target.closest?.('[data-dragcrew]');
+  if (row) S.drag = { kind: 'row', r: JSON.parse(row.dataset.edrow) }; else if (chip) S.drag = { kind: 'crew', who: chip.dataset.dragcrew }; else return;
+  e.dataTransfer.effectAllowed = row ? 'move' : 'copy'; e.dataTransfer.setData('text/plain', S.drag.kind); (row || chip).classList.add('dragging'); ctxClose(); hovHide();
+});
+document.addEventListener('dragover', e => {
+  const d = S.drag; if (!d) return; let tgt = null;
+  if (d.kind === 'row') { const day = e.target.closest('.board .day[data-date]'); if (day && day.dataset.date !== d.r.date && !rowsOn(day.dataset.date).some(x => !x.job)) tgt = day; }
+  else { const as = e.target.closest('.board .as[data-edrow]'); if (as && JSON.parse(as.dataset.edrow).job) tgt = as; }
+  if (!tgt) { dropClear(); return; }
+  e.preventDefault(); e.dataTransfer.dropEffect = d.kind === 'row' ? 'move' : 'copy';
+  if (!tgt.classList.contains('dropok')) { dropClear(); tgt.classList.add('dropok'); }
+});
+document.addEventListener('drop', e => {
+  const d = S.drag, tgt = $('.dropok'); if (!d || !tgt) return; e.preventDefault(); dropClear(); S.drag = null;
+  if (d.kind === 'row') moveRow(d.r, tgt.dataset.date); else addCrew(JSON.parse(tgt.dataset.edrow), d.who);
+});
+document.addEventListener('dragend', () => { S.drag = null; dropClear(); document.querySelectorAll('.dragging').forEach(x => x.classList.remove('dragging')); });
+
+// Right-click menus on jobs and schedule rows
+function ctxClose() { $('#ctx')?.remove(); S.ctx = null; }
+document.addEventListener('contextmenu', e => {
+  if (!desk() || !S.data) return;
+  const el = e.target.closest('[data-edrow], .card[data-vt], .jl[data-job], .lg[data-job], .as[data-job], [data-cj], .jhd');
+  if (!el) return ctxClose();
+  let job = null, r = null;
+  if (el.dataset.edrow) { r = JSON.parse(el.dataset.edrow); job = r.job; }
+  else if (el.dataset.cj) { job = el.dataset.cj; const d = el.closest('[data-day]')?.dataset.day; r = d ? rowsOn(d).find(x => x.job === job) : null; }
+  else if (el.classList.contains('jhd')) job = S.job;
+  else { job = el.dataset.vt || el.dataset.job; const d = el.dataset.date || el.closest('[data-date]')?.dataset.date; r = d ? rowsOn(d).find(x => x.job === job) : null; }
+  const j = jobById(job); if (!j && !r) return ctxClose();
+  e.preventDefault(); ctxClose(); S.ctx = { job, r };
+  const it = (act, icon, label) => `<button role="menuitem" data-ctx="${act}">${icon}${label}</button>`;
+  const items = [j && it('open', INFO, 'Open job'), canEdit() && r && it('edrow', PENCIL, 'Edit schedule'), canEdit() && j && it('edjob', PENCIL, 'Edit job info'),
+    j?.address && '<hr>', j?.address && it('nav', NAV, 'Navigate'), j?.address && it('copy', PIN, 'Copy address'),
+    canEdit() && r?.job && '<hr>', canEdit() && r?.job && it('dup', PLUS, `Copy to the next workday`)].filter(Boolean).join('');
+  document.body.insertAdjacentHTML('beforeend', `<div id="ctx" class="ctx" role="menu">${j ? `<div class="ctt">${jdot(job)}${esc(j.name)}</div>` : ''}${items}</div>`);
+  const m = $('#ctx'), w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.min(e.clientX, innerWidth - w - 8) + 'px'; m.style.top = Math.min(e.clientY, innerHeight - h - 8) + 'px';
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('#ctx [data-ctx]'); if (!b) { if (!e.target.closest('#ctx')) ctxClose(); return; }
+  e.stopPropagation(); const { job, r } = S.ctx || {}, j = jobById(job), a = b.dataset.ctx; ctxClose();
+  if (a === 'open') openJob(job);
+  else if (a === 'edrow') editor(r);
+  else if (a === 'edjob') jobForm(j);
+  else if (a === 'nav') open(mapsUrl(j.address), '_blank', 'noopener');
+  else if (a === 'copy') navigator.clipboard?.writeText(cleanAddr(j.address)).then(() => toast('Address copied.'), () => toast('Could not copy.'));
+  else if (a === 'dup') dupRow(r, r.date);
+}, true);
+addEventListener('scroll', () => { ctxClose(); hovHide(); }, { passive: true }); addEventListener('resize', ctxClose); addEventListener('blur', ctxClose);
+
+// Calendar: hover a day to see who's where without clicking
+let hovT = 0;
+function hovHide() { clearTimeout(hovT); $('#hov')?.remove(); }
+document.addEventListener('mouseover', e => {
+  if (!desk() || S.drag) return;
+  const cell = e.target.closest('.cd[data-day]');
+  if (!cell) { if (!e.target.closest('#hov')) hovHide(); return; }
+  if ($('#hov')?.dataset.day === cell.dataset.day) return;
+  hovHide(); const d = cell.dataset.day, rows = rowsOn(d); if (!rows.length) return;
+  hovT = setTimeout(() => {
+    const off = rows.find(r => !r.job);
+    const body = off ? `<p class="hn">${esc(off.notes || 'Day off')}</p>` : rows.map(r => { const j = jobById(r.job), w = j && wxFor(j, d);
+      return `<div class="hr"><span class="ht">${time12(r.start)}</span><div><b>${jdot(r.job)}${esc(j?.name || r.job)}</b><div class="hc">${esc(r.crew.map(first).join(', '))}${w ? ` · ${w.hi}° · ${w.pop}%` : ''}</div>${r.notes ? `<p class="hn">${esc(r.notes)}</p>` : ''}</div></div>`; }).join('');
+    document.body.insertAdjacentHTML('beforeend', `<div id="hov" class="hov" data-day="${d}"><div class="hh">${fmtDay(d, { weekday: 'long', month: 'short', day: 'numeric' })}</div>${body}</div>`);
+    const h = $('#hov'), rc = cell.getBoundingClientRect(), w = h.offsetWidth, ht = h.offsetHeight;
+    const x = rc.right + 10 + w < innerWidth ? rc.right + 10 : rc.left - w - 10;
+    h.style.left = Math.max(8, x) + 'px'; h.style.top = Math.max(8, Math.min(rc.top, innerHeight - ht - 8)) + 'px';
+  }, 280);
+});
+
+// Taskbar shortcuts open the app with ?go=…
+let GO = new URLSearchParams(location.search).get('go');
+function goShortcut() {
+  if (!GO || !S.data || !S.me || S.splashHold) return; const g = GO; GO = null;
+  history.replaceState(null, '', location.pathname);
+  if (g === 'receipt') return rcptForm({ job: '' });
+  if (g === 'newjob' && canEdit()) { S.tab = 'jobs'; render('tab'); return jobForm(null); }
+  if (['week', 'cal', 'jobs', 'today'].includes(g) || g === 'newjob') { S.tab = g === 'newjob' ? 'jobs' : g; S.job = null; render('tab'); }
+}
 // Opening a job adds a history step, so the phone's own back button or swipe closes it.
 function openJob(id) { if (desk()) return deskOpen(id); S.listY = scrollY; S.job = id; history.pushState({ job: id }, ''); scrollTo(0, 0); render('push'); }
 function closeJob() { S.job = null; render('pop'); scrollTo(0, S.listY || 0); parallax(); }
@@ -867,6 +1004,8 @@ document.addEventListener('click', e => {
   else if (act === 'jnew') jobForm(null);
   else if (act === 'sadd') scopeForm(jobById(S.job), -1);
   else if (act === 'radd') rcptForm({ job: S.job || '' });
+  else if (act === 'slim') { const on = !document.documentElement.classList.contains('slim'); store.set('slim', on); setSlim(on); }
+  else if (act === 'toastfn') { const f = toast.fn; toast.fn = null; $('#toast')?.classList.remove('show'); f?.(); }
   else if (act === 'rall') { S.allRcpt = S.job; render(); }
   else if (act === 'fsave') formSave(false);
   else if (act === 'fdel') { if (S.form.del) formSave(true); else { S.form.del = true; drawForm(); } }
@@ -877,9 +1016,14 @@ document.addEventListener('click', e => {
   else if (act === 'refresh') { closeSheet(); load(true); }
 });
 let toastT = 0;
-function toast(msg) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); } t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
+function toast(msg, action) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+  t.textContent = msg; t.classList.toggle('act', !!action); toast.fn = action?.fn || null;
+  if (action) t.insertAdjacentHTML('beforeend', `<button data-act="toastfn">${esc(action.label)}</button>`);
+  t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), action ? 7000 : 3200); }
 document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; if (desk() && $('.jlist')) { $('.jlist').innerHTML = jobsHTML(true); return; } jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { S.badge = 0; navigator.clearAppBadge?.().catch(() => {}); load(); } });
+// Installed app: check for schedule changes every 5 minutes while it sits in the background, and count them on the taskbar icon.
+if (matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches) setInterval(() => { if (document.hidden && S.key) load(); }, 5 * 60e3);
 // editor form fields
 const edField = e => { const el = e.target.closest('[data-f]'); if (!el || !S.ed) return; const f = el.dataset.f;
   if (f === 'multi') { S.ed.multi = el.checked; if (S.ed.multi && !S.ed.thru) S.ed.thru = addDays(S.ed.from, 4); return drawEditor(); }
