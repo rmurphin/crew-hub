@@ -12,5 +12,15 @@ self.addEventListener('fetch', e => {
       .catch(() => caches.match('index.html')));
     return;
   }
+  // App settings (icons, shortcuts) always come fresh when online, so changes reach installs.
+  if (url.pathname.endsWith('.webmanifest')) {
+    e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(V).then(c => c.put(req, copy)); return r; }).catch(() => caches.match(req, { ignoreSearch: true })));
+    return;
+  }
+  // The wide map (computers only) is kept after its first download.
+  if (url.pathname.endsWith('topo-desk.svg')) {
+    e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(r => { const copy = r.clone(); caches.open(V).then(c => c.put(req, copy)); return r; })));
+    return;
+  }
   e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req)));
 });

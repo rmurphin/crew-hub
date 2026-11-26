@@ -49,19 +49,21 @@ const MARKS = [
 // Short headers only label the two peaks; the full map (river, towns, Rainier, Hood) shows on the sign-in screen.
 const DESK_MAP = { ok: false, loading: false };
 function loadDeskMap() {
-  if (DESK_MAP.ok || DESK_MAP.loading || !desk()) return; DESK_MAP.loading = true;
-  fetch('topo-desk.svg').then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
+  if (DESK_MAP.ok || DESK_MAP.loading || !desk()) return DESK_MAP.p; DESK_MAP.loading = true;
+  return DESK_MAP.p = fetch('topo-desk.svg').then(r => r.ok ? r.text() : Promise.reject()).then(svg => {
     document.querySelector('#topo-map').insertAdjacentHTML('afterend', `<g id="topo-desk">${svg}</g>`); DESK_MAP.ok = true;
     if (S.data && !S.splashHold) render();
   }).catch(() => { DESK_MAP.loading = false; });
 }
 const SPOTS = { today: { x: '55%', y: 100, k: 2.6, few: 1 }, bar: { x: '40%', y: 30, k: 2.6, adams: 'b', few: 1 }, job: { x: '47%', y: 24, k: 2.6, adams: 'b', few: 1 }, splash: { x: '50%', y: () => Math.round(innerHeight * .5), k: 2.6, few: 1 }, link: { x: '47%', y: () => Math.round(Math.max(510, innerHeight * .64)), k: 2.6 } };
 const TOPO = spot => {
-  let { x, k, adams = 'a', few } = SPOTS[spot]; const y = typeof SPOTS[spot].y === 'function' ? SPOTS[spot].y() : SPOTS[spot].y, G = '#9cc4a8', W = '#eef2ee';
-  // Computers: header bands use the wide map so the lines reach both edges; the opening screen shows the map bigger.
-  const wide = desk() && spot !== 'splash' && spot !== 'link' && DESK_MAP.ok;
-  if (wide) { k = 2.6 * Math.max(1, (innerWidth - 236) / 2000); if (spot === 'bar' || spot === 'job') x = '68%'; }
-  else if (desk() && spot === 'splash') k = 2.6 * Math.min(2.4, Math.max(1, innerWidth / 820));
+  let { x, k, adams = 'a', few } = SPOTS[spot], y = typeof SPOTS[spot].y === 'function' ? SPOTS[spot].y() : SPOTS[spot].y; const G = '#9cc4a8', W = '#eef2ee';
+  // Computers: header bands use the wide map so the lines reach both edges.
+  const wide = desk() && spot !== 'link' && DESK_MAP.ok;
+  if (spot === 'splash') {  // opening screen: the map covers the whole screen, centered
+    const b = wide ? [-440, 420, -200, 210] : [-115, 100, -90, 120], sw = innerWidth, sh = innerHeight;
+    k = 1.03 * Math.max(sw / (b[1] - b[0]), sh / (b[3] - b[2])); x = Math.round(sw / 2 - k * (b[0] + b[1]) / 2); y = Math.round(sh / 2 - k * (b[2] + b[3]) / 2);
+  } else if (wide) { k = 2.6 * Math.max(1, (innerWidth - 236) / 2000); if (spot === 'bar' || spot === 'job') x = '68%'; }
   const t = (px, py, txt, size, wt, fill, op, end, more = '') => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ''}${more}>${txt}</text>`;
   const marks = MARKS.filter(m => !few || m.main || m.side).map(m => {
     const px = m.x * k, py = -m.y * k;
@@ -1064,9 +1066,10 @@ document.addEventListener('touchend', async () => {
 const splash = $('#splash');
 render('tab');
 if (splash) {
-  // Just the contour lines here: no mountain markers or labels competing with the logo.
-  const map = TOPO('splash'), lines = map.slice(0, map.indexOf('</g>') + 4).replace('<use href="#topo-map"/>', '<use href="#topo-map"/>' + TOPO_FILL);
-  splash.insertAdjacentHTML('afterbegin', lines + '</svg></svg>');
+  // Just the contour lines here: no mountain markers or labels competing with the logo. Computers wait briefly for the wide map.
+  const deskReady = desk() ? Promise.race([DESK_MAP.p || Promise.resolve(), new Promise(r => setTimeout(r, 900))]).catch(() => {}) : Promise.resolve();
+  const putMap = () => { const map = TOPO('splash'), lines = map.slice(0, map.indexOf('</g>') + 4).replace('<use href="#topo-map"/>', '<use href="#topo-map"/>' + TOPO_FILL);
+    splash.insertAdjacentHTML('afterbegin', lines + '</svg></svg>'); };
   S.splashHold = true;
   const frames = n => new Promise(r => { const f = () => (--n ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); });
   const fontReady = Promise.race([Promise.all([document.fonts?.load('900 1em Archivo'), document.fonts?.ready]), new Promise(r => setTimeout(r, 700))]);
@@ -1080,7 +1083,7 @@ if (splash) {
   };
   // With a saved schedule on the phone, the app is already showing it, so checking for updates can wait 2 seconds.
   var waitLoad = !!(S.key && S.data);
-  fontReady.then(() => frames(2)).then(() => { splash.classList.add('go'); setTimeout(finish, 2400); });
+  Promise.all([fontReady, deskReady]).then(() => { putMap(); return frames(2); }).then(() => { splash.classList.add('go'); setTimeout(finish, 2400); });
   setTimeout(finish, 4200);  // never hold the app longer than this
 }
 if (!splash || !waitLoad) { load(); loadWeather(); }
