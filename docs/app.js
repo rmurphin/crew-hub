@@ -900,11 +900,6 @@
     for (; [0, 6].includes(fromKey(nd).getDay()); ) nd = addDays(nd, 1);
     schedPost({ action: "add", item: itemOf(r, { date: nd, thru: "" }) }, `Copied ${jobById(r.job)?.name || r.job} to ${short(nd)}.`);
   }
-  function daySheet(d) {
-    hovHide(), showSheet(`<div class="ov" data-act="close"><div class="sheet dsheet" role="dialog" aria-modal="true" aria-label="${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}">
-    <div class="sh"><h2>${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}</h2><button class="done" data-act="close">Done</button></div>
-    ${daySection(d, rowsOn(d))}${canEdit() ? `<button class="btn go" data-act="edadd">${PLUS}Add to this day</button>` : ""}</div></div>`);
-  }
   function calFit() {
     if (!desk() || S.tab !== "cal") return;
     let cal = $(".calw .cal");
@@ -913,6 +908,8 @@
       cal.style.height = h + "px";
       let extra = document.documentElement.scrollHeight - innerHeight;
       extra > 0 && (cal.style.height = Math.max(460, h - extra) + "px");
+      let side = $(".calw > .day");
+      side && (side.style.maxHeight = cal.style.height);
     }
     document.querySelectorAll(".cd .cn").forEach((cn) => {
       cn.querySelector(".cmore")?.remove();
@@ -1034,6 +1031,7 @@
       return;
     }
     if ($("#hov")?.dataset.day === cell.dataset.day) return;
+    if (S.tab === "cal" && cell.dataset.day === S.sel && $(".calw > .day")) return hovHide();
     hovHide();
     let d = cell.dataset.day, rows = rowsOn(d);
     rows.length && (hovT = setTimeout(() => {
@@ -1134,10 +1132,8 @@
     if (d.tab)
       return buzz(), d.tab === S.tab && !S.job ? scrollTo({ top: 0, behavior: motionOK.matches ? "smooth" : "auto" }) : (S.tab = d.tab, S.job = null, scrollTo(0, 0), render("tab"));
     if (d.job) return openJobFrom(d.job, b.closest("[data-vt], .jl, .as, .card"));
-    if (d.day) {
-      S.sel = d.day, d.day.slice(0, 7) !== S.month.slice(0, 7) && (S.month = d.day.slice(0, 8) + "01"), render(), desk() && daySheet(d.day);
-      return;
-    }
+    if (d.day)
+      return S.sel = d.day, d.day.slice(0, 7) !== S.month.slice(0, 7) && (S.month = d.day.slice(0, 8) + "01"), render();
     let act = d.act;
     if (act === "back")
       history.state?.job && (S.skipPop = !0, history.back()), closeJobAnimated();
