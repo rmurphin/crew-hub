@@ -205,13 +205,13 @@ function calScreen() {
     const d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter(r => r.job), off = rows.find(r => !r.job), out = d.slice(0, 7) !== mm;
     const cls = ['cd', jobs.some(r => r.crew.includes(S.me)) && 'mine', out && 'out', d === today() && 'tdy', d === S.sel && 'sel', off && 'off', S.changed.has(d) && 'chg', i % 7 > 4 && 'we', d < today() && 'past'].filter(Boolean).join(' ');
     const label = `${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}: ${off ? esc(off.notes || 'off') : jobs.length ? jobs.map(r => esc(jobById(r.job)?.name || r.job)).join(', ') : 'nothing scheduled'}`;
-    return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ''}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map(r => `<i style="background:${jobColor(r.job)}"></i>`).join('')}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ''}</span><span class="cn">${jobs.slice(0, 3).map(r => `<i data-cj="${r.job}" style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join('')}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ''}</span>`}</button>`;
+    return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ''}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map(r => `<i style="background:${jobColor(r.job)}"></i>`).join('')}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ''}</span><span class="cn">${jobs.map(r => `<i data-cj="${r.job}" style="--c:${jobColor(r.job)}"><b>${esc(jobById(r.job)?.name || r.job)}</b><s>${esc(r.crew.map(n => String(n).split(' ')[0]).join(', '))}</s></i>`).join('')}</span>`}</button>`;
   }).join('');
   const seen = [...new Set((S.data?.schedule || []).filter(r => r.job && r.date.startsWith(mm)).map(r => r.job))];
   const legend = seen.map(id => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join('');
   $('#app').innerHTML = `<header class="band">${TOPO('bar')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div></div></header>
-  <main class="w calw"><div class="cal"><div class="cw" aria-hidden="true">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells}</div>
+  <main class="w calw" style="--wk:${weeks}"><div class="cal"><div class="cw" aria-hidden="true">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells}</div>
     ${legend ? `<p class="mykey"><i></i>Days you're on the schedule</p>` : `<p class="empty" style="margin:12px 4px 2px">Nothing scheduled this month.</p>`}</div>
     ${daySection(S.sel, rowsFor(S.sel))}
     ${legend ? `<div class="sec">Jobs this month</div><div class="legend">${legend}</div>` : ''}</main>`;
@@ -925,8 +925,27 @@ function dupRow(r, d) {
   let nd = addDays(d, 1); while ([0, 6].includes(fromKey(nd).getDay())) nd = addDays(nd, 1);
   schedPost({ action: 'add', item: itemOf(r, { date: nd, thru: '' }) }, `Copied ${jobById(r.job)?.name || r.job} to ${short(nd)}.`);
 }
+// Computer calendar: a day's full list in a pop-up, and days trimmed to what fits with a "+ more" count.
+function daySheet(d) {
+  hovHide();
+  showSheet(`<div class="ov" data-act="close"><div class="sheet dsheet" role="dialog" aria-modal="true" aria-label="${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}">
+    <div class="sh"><h2>${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</h2><button class="done" data-act="close">Done</button></div>
+    ${daySection(d, rowsOn(d))}${canEdit() ? `<button class="btn go" data-act="edadd">${PLUS}Add to this day</button>` : ''}</div></div>`);
+}
+function calFit() {
+  if (!desk() || S.tab !== 'cal') return;
+  const cal = $('.calw .cal');
+  if (cal) { const top = cal.getBoundingClientRect().top + scrollY; let h = Math.max(460, innerHeight - top - 14); cal.style.height = h + 'px';
+    const extra = document.documentElement.scrollHeight - innerHeight; if (extra > 0) cal.style.height = Math.max(460, h - extra) + 'px'; }
+  document.querySelectorAll('.cd .cn').forEach(cn => {
+    cn.querySelector('.cmore')?.remove(); const chips = [...cn.children]; chips.forEach(c => { c.hidden = false; });
+    const cell = cn.closest('.cd'); let shown = chips.length;
+    while (shown > 0 && cell.scrollHeight > cell.clientHeight + 1) { chips[--shown].hidden = true; if (shown < chips.length && !cn.querySelector('.cmore')) cn.insertAdjacentHTML('beforeend', '<small class="cmore"></small>'); const m = cn.querySelector('.cmore'); if (m) m.textContent = `+${chips.length - shown} more`; }
+  });
+}
+addEventListener('resize', () => { clearTimeout(calFit.t); calFit.t = setTimeout(calFit, 120); });
 function deskAfter() {
-  ctxClose(); hovHide();
+  ctxClose(); hovHide(); calFit();
   if (!desk() || !canEdit() || S.tab !== 'week' || S.job) return;
   const board = $('main.board'); if (!board) return;
   board.querySelectorAll('.as[data-edrow]').forEach(b => { const r = JSON.parse(b.dataset.edrow); if (r.job) b.draggable = true; });
@@ -1053,7 +1072,7 @@ document.addEventListener('click', e => {
   if (d.crew && S.ed) { const c = S.ed.crew, i = c.indexOf(d.crew); i < 0 ? c.push(d.crew) : c.splice(i, 1); b.setAttribute('aria-pressed', i < 0); return; }
   if (d.tab) { buzz(); if (d.tab === S.tab && !S.job) return scrollTo({ top: 0, behavior: motionOK.matches ? 'smooth' : 'auto' }); S.tab = d.tab; S.job = null; scrollTo(0, 0); return render('tab'); }
   if (d.job) return openJobFrom(d.job, b.closest('[data-vt], .jl, .as, .card'));
-  if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; return render(); }
+  if (d.day) { S.sel = d.day; if (d.day.slice(0, 7) !== S.month.slice(0, 7)) S.month = d.day.slice(0, 8) + '01'; render(); if (desk()) daySheet(d.day); return; }
   const act = d.act;
   if (act === 'back') { if (history.state?.job) { S.skipPop = true; history.back(); } closeJobAnimated(); }
   else if (act === 'wprev' || act === 'wnext') { S.week = addDays(S.week, act === 'wprev' ? -7 : 7); render(act === 'wprev' ? 'prev' : 'next'); }
