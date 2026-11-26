@@ -122,11 +122,9 @@
     }
     let tmr = addDays(k, 1), tmrRows = mineOn(tmr), evening = (/* @__PURE__ */ new Date()).getHours() >= 15 && tmrRows.length, todayBlock = mine.length ? mine.map((r) => assignCard(r, "Today", !!evening)).join("") : `<div class="card calm${evening ? " sm" : " hero"}"><svg class="ctopo" viewBox="-30 -18 60 36" aria-hidden="true"><use href="#topo-map"/></svg><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || "No work today") : "Not scheduled today"}</div><div class="empty">${off ? "" : "Nothing on the schedule for you. Check with Riley if that seems wrong."}</div></div>`, tmrLabel = fmtDay(tmr, { weekday: "short", month: "short", day: "numeric" });
     $("#app").innerHTML = `<header class="band tall">${TOPO("today")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
-    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: "long", month: "long", day: "numeric" })}</p>${updated()}</div></div></header>
-  <main class="w lift">
-    ${evening ? tmrRows.map((r) => assignCard(r, "Tomorrow \xB7 " + tmrLabel, !1)).join("") + '<div class="sec">Earlier today</div>' + todayBlock : todayBlock + (tmrRows.length ? `<div class="sec">Tomorrow \xB7 ${tmrLabel}</div>` + tmrRows.map((r) => assignCard(r, fmtDay(tmr, { weekday: "long" }), !0)).join("") : next ? `<div class="sec">Next up \xB7 ${fmtDay(next.d, { weekday: "short", month: "short", day: "numeric" })}</div>` + next.r.map((r) => assignCard(r, fmtDay(next.d, { weekday: "long" }), !0)).join("") : "")}
-    <button class="rbtn" data-act="radd">${RCPT}<span><b>Add a receipt</b><small>Gas, supplies, food. Type it in, it goes to the office.</small></span></button>
-  </main>`;
+    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: "long", month: "long", day: "numeric" })}</p>${updated()}</div></div></header>`;
+    let colA = evening ? tmrRows.map((r) => assignCard(r, "Tomorrow \xB7 " + tmrLabel, !1)).join("") : todayBlock, colB = (evening ? '<div class="sec">Earlier today</div>' + todayBlock : tmrRows.length ? `<div class="sec">Tomorrow \xB7 ${tmrLabel}</div>` + tmrRows.map((r) => assignCard(r, fmtDay(tmr, { weekday: "long" }), !0)).join("") : next ? `<div class="sec">Next up \xB7 ${fmtDay(next.d, { weekday: "short", month: "short", day: "numeric" })}</div>` + next.r.map((r) => assignCard(r, fmtDay(next.d, { weekday: "long" }), !0)).join("") : "") + `<button class="rbtn" data-act="radd">${RCPT}<span><b>Add a receipt</b><small>Gas, supplies, food. Type it in, it goes to the office.</small></span></button>`;
+    $("#app").innerHTML += `<main class="w lift tcols"><div class="col">${colA}</div><div class="col">${colB}</div></main>`;
   }
   function daySection(d, rows) {
     return `<section class="day${d === today() ? " now" : ""}${S.changed.has(d) ? " chg" : ""}" data-date="${d}"><div class="dh">${fmtDay(d, { weekday: "long" })}<span>${fmtDay(d, { month: "short", day: "numeric" })}</span>${S.changed.has(d) ? '<strong class="ctag">Updated</strong>' : ""}${d === today() ? "<em>Today</em>" : ""}</div>
@@ -139,11 +137,11 @@
   function calScreen() {
     let m0 = S.month, first2 = fromKey(m0), start = mondayOf(m0), mm = m0.slice(0, 7), lastDay = new Date(first2.getFullYear(), first2.getMonth() + 1, 0), weeks = Math.ceil(((first2.getDay() + 6) % 7 + lastDay.getDate()) / 7), rowsFor = (d) => rowsOn(d), cells = [...Array(weeks * 7)].map((_, i) => {
       let d = addDays(start, i), rows = rowsFor(d), jobs = rows.filter((r) => r.job), off = rows.find((r) => !r.job), out = d.slice(0, 7) !== mm, cls = ["cd", jobs.some((r) => r.crew.includes(S.me)) && "mine", out && "out", d === today() && "tdy", d === S.sel && "sel", off && "off", S.changed.has(d) && "chg", i % 7 > 4 && "we", d < today() && "past"].filter(Boolean).join(" "), label = `${fmtDay(d, { weekday: "long", month: "long", day: "numeric" })}: ${off ? esc(off.notes || "off") : jobs.length ? jobs.map((r) => esc(jobById(r.job)?.name || r.job)).join(", ") : "nothing scheduled"}`;
-      return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ""}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map((r) => `<i style="background:${jobColor(r.job)}"></i>`).join("")}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ""}</span>`}</button>`;
+      return `<button class="${cls}" data-day="${d}" aria-label="${label}"${d === S.sel ? ' aria-pressed="true"' : ""}><b>${+d.slice(8)}</b>${off ? '<span class="ofl">Off</span>' : `<span class="bars">${jobs.slice(0, 3).map((r) => `<i style="background:${jobColor(r.job)}"></i>`).join("")}${jobs.length > 3 ? `<span class="more">+${jobs.length - 3}</span>` : ""}</span><span class="cn">${jobs.slice(0, 3).map((r) => `<i style="--c:${jobColor(r.job)}">${esc(jobById(r.job)?.name || r.job)}</i>`).join("")}${jobs.length > 3 ? `<small>+${jobs.length - 3} more</small>` : ""}</span>`}</button>`;
     }).join(""), legend = [...new Set((S.data?.schedule || []).filter((r) => r.job && r.date.startsWith(mm)).map((r) => r.job))].map((id) => `<button class="lg" data-job="${id}"><i style="background:${jobColor(id)}"></i>${esc(jobById(id)?.name || id)}</button>`).join("");
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="mprev" aria-label="Previous month">${L}</button><b>${first2.toLocaleDateString("en-US", { month: "long", year: "numeric" })}<br>${mm === today().slice(0, 7) ? '<span class="mt">This month</span>' : '<button class="jt" data-act="mnow">Back to this month</button>'}</b><button data-act="mnext" aria-label="Next month">${R}</button></div></div></header>
-  <main class="w"><div class="cal"><div class="cw" aria-hidden="true">${["M", "T", "W", "T", "F", "S", "S"].map((x) => `<span>${x}</span>`).join("")}</div><div class="cg">${cells}</div>
+  <main class="w calw"><div class="cal"><div class="cw" aria-hidden="true">${["M", "T", "W", "T", "F", "S", "S"].map((x) => `<span>${x}</span>`).join("")}</div><div class="cg">${cells}</div>
     ${legend ? `<p class="mykey"><i></i>Days you're on the schedule</p>` : '<p class="empty" style="margin:12px 4px 2px">Nothing scheduled this month.</p>'}</div>
     ${daySection(S.sel, rowsFor(S.sel))}
     ${legend ? `<div class="sec">Jobs this month</div><div class="legend">${legend}</div>` : ""}</main>`;
@@ -152,17 +150,38 @@
     let days = [...Array(7)].map((_, i) => addDays(S.week, i)), label = `${fmtDay(days[0], { month: "short", day: "numeric" })} \u2013 ${fmtDay(days[6], { month: "short", day: "numeric" })}`;
     $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <div class="wk"><button data-act="wprev" aria-label="Previous week">${L}</button><b>${S.week === mondayOf(today()) ? "This week" : label}<br><span style="font-weight:500;font-size:13px;color:#9aa69d">${label}</span></b><button data-act="wnext" aria-label="Next week">${R}</button></div></div></header>
-  <main class="w">${days.map((d) => {
+  <main class="w board">${days.map((d) => {
       let rows = rowsOn(d);
       return [0, 6].includes(fromKey(d).getDay()) && !rows.length ? "" : daySection(d, rows);
     }).join("")}</main>`;
   }
+  function jobLists() {
+    let q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter((j) => !q || (j.name + " " + j.gc + " " + j.address).toLowerCase().includes(q));
+    return { on: all.filter((j) => j.status === "In Progress"), up: all.filter((j) => j.status !== "In Progress").sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999")) };
+  }
   function jobsScreen() {
-    let q = S.q.trim().toLowerCase(), all = (S.data?.jobs || []).filter((j) => !q || (j.name + " " + j.gc + " " + j.address).toLowerCase().includes(q)), on = all.filter((j) => j.status === "In Progress"), up = all.filter((j) => j.status !== "In Progress").sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999")), row = (j) => `<button class="jl" data-job="${j.id}"><div class="n">${jdot(j.id)}${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ""}</div>
+    $("#app").innerHTML = jobsHTML();
+  }
+  function jobsHTML() {
+    let { on, up } = jobLists(), row = (j) => `<button class="jl${desk() && j.id === S.job ? " sel" : ""}" data-job="${j.id}"><div class="n">${jdot(j.id)}${esc(j.name)}${pwPill(j)}${canEdit() && jobTotal(j.id) ? `<span class="jt">${money(jobTotal(j.id))}</span>` : ""}</div>
     <div class="m">${esc([j.gc, city(j.address)].filter(Boolean).join(" \xB7 "))}${j.start && j.status !== "In Progress" && j.start >= today() ? " \xB7 starts " + fmtDay(j.start, { month: "short", day: "numeric", year: j.start.slice(0, 4) === today().slice(0, 4) ? void 0 : "numeric" }) : ""}</div></button>`;
-    $("#app").innerHTML = `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
+    return `<header class="band">${TOPO("bar")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
   <main class="w">${on.length ? `<div class="sec">In progress</div>${on.map(row).join("")}` : ""}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join("")}` : ""}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ""}</main>`;
+  }
+  function deskJobs() {
+    if (!jobById(S.job)) {
+      let { on, up } = jobLists(), all = S.data?.jobs || [];
+      S.job = (on[0] || up[0] || all.find((j) => j.status === "In Progress") || all[0])?.id || null;
+    }
+    let list = jobsHTML();
+    if (!S.job) {
+      $("#app").innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane"><p class="empty" style="padding:48px 32px">No jobs yet.</p></div></div>`;
+      return;
+    }
+    jobScreen();
+    let page = $("#app").innerHTML;
+    $("#app").innerHTML = `<div class="split"><aside class="jlist">${list}</aside><div class="pane">${page}</div></div>`;
   }
   function jobScreen() {
     let j = jobById(S.job);
@@ -177,7 +196,7 @@
     let spec = (g) => `<div class="sp"><div class="a">${esc(g.area)}</div>${g.items.map(step).join("")}</div>`;
     $("#app").innerHTML = `<header class="band">${TOPO("job")}<div class="w jp"><div class="jtop"><button class="back" data-act="back">${L}Back</button>${canEdit() ? `<button class="edb" data-act="jedit">${PENCIL}Edit job</button>` : ""}</div>
     <h1>${jdot(j.id)}${esc(j.name)}</h1><p>${esc([j.gc && "GC: " + j.gc, j.type].filter(Boolean).join(" \xB7 "))}${j.status === "In Progress" ? '<span class="pill on">In progress</span>' : ""}</p></div></header>
-  <main class="w">
+  <main class="w jcols"><div class="col">
     <div class="card">${siteMap(j)}${j.address ? `<div class="addr" style="margin:0">${PIN}<span>${esc(j.address)}</span></div><div class="btns" style="grid-template-columns:1fr"><a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a></div>` : '<div class="empty">No address yet.</div>'}
       ${pwStrip(j)}
       ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ""}</div>
@@ -186,11 +205,12 @@
       let d = addDays(today(), n), w = wxFor(j, d);
       return w ? `<div class="wd"><b>${n ? fmtDay(d, { weekday: "short" }) : "Today"}</b>${wxIcon(w.code, 24)}<span>${w.hi}\xB0 <i>${w.lo}\xB0</i></span><small>${w.pop}%</small></div>` : "";
     }).join("")}</div>` : ""}
+    </div><div class="col">
     <div class="sech"><div class="sec">Scope &amp; products</div>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ""}</div><div class="card">${groups.length ? groups.map(spec).join("") : `<div class="empty">Scope hasn't been entered yet. Check with Riley before starting.</div>`}</div>
     ${rcptSection(j)}
     <div class="sech"><div class="sec">Site &amp; contacts</div>${canEdit() ? '<button class="addl" data-act="jedit">Edit</button>' : ""}</div><div class="card">${Object.keys(site).length ? `<dl class="kv">${[["Contact", site.contact], ["Phone", site.phone], ["Email", site.email], ["Access", site.access]].filter((x) => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${linkify(v)}</dd>`).join("")}</dl>` : '<div class="empty">No site contact entered yet.</div>'}</div>
     ${wk.length ? `<div class="sec">On the schedule</div><div class="card">${wk.map((r) => `<div class="sr"><div class="sd">${fmtDay(r.date, { weekday: "short", month: "short", day: "numeric" })}<span>${time12(r.start)}</span></div><div class="c">${crewChips(r.crew)}</div></div>`).join("")}</div>` : ""}
-  </main>`;
+  </div></main>`;
   }
   function settings() {
     showSheet(`<div class="ov" data-act="close"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="stH"><div class="sh"><h2 id="stH">Settings</h2><button class="done" data-act="close">Done</button></div>
@@ -558,8 +578,12 @@
     let r = el.getBoundingClientRect();
     return r.bottom > 0 && r.top < innerHeight;
   });
+  function deskOpen(id) {
+    let fromTab = S.tab !== "jobs";
+    S.tab = "jobs", S.job = id, scrollTo(0, 0), render(fromTab ? "tab" : void 0), $(".jl.sel")?.scrollIntoView({ block: "nearest" }), countUp();
+  }
   function openJobFrom(id, src) {
-    if (!vtOK() || !src) return openJob(id);
+    if (!vtOK() || !src || desk()) return openJob(id);
     clearVT(), nameSource(src), document.startViewTransition(() => {
       S.listY = scrollY, S.job = id, history.pushState({ job: id }, ""), scrollTo(0, 0), clearVT(), render("vt"), nameJobPage();
     }).finished.finally(() => {
@@ -736,8 +760,8 @@
       return;
     }
     render2();
-    let fab = canEdit() && S.me && !S.job && ["today", "week", "cal", "jobs"].includes(S.tab);
-    canEdit() && S.me && !S.job && ["today", "week", "cal", "jobs"].includes(S.tab) && $("#app").insertAdjacentHTML("beforeend", S.tab === "jobs" ? `<button class="fab" data-act="jnew">${PLUS}New job</button>` : `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
+    let fab = canEdit() && S.me && (!S.job || desk() && S.tab === "jobs") && ["today", "week", "cal", "jobs"].includes(S.tab) && !!S.data;
+    fab && $("#app").insertAdjacentHTML("beforeend", S.tab === "jobs" ? `<button class="fab" data-act="jnew">${PLUS}New job</button>` : `<button class="fab" data-act="edadd">${PLUS}Add</button>`);
     let a = $("#app");
     a.className = "", fab && a.classList.add("has-fab"), nav && motionOK.matches && (a.offsetWidth, a.classList.add("nv-" + nav), clearTimeout(navT), navT = setTimeout(() => {
       a.classList.remove("nv-" + nav);
@@ -745,7 +769,21 @@
     let cbt = $("#cbt");
     cbt && (cbt.textContent = cbarTitle()), cbarUpdate(), nav === "push" && countUp();
   }
+  var deskMQ = matchMedia("(min-width: 1100px)"), desk = () => deskMQ.matches, setDesk = () => document.documentElement.classList.toggle("desk", desk());
+  setDesk();
+  deskMQ.addEventListener?.("change", () => {
+    setDesk(), S.data && !S.splashHold && (!desk() && S.tab === "jobs" && (S.job = null), render());
+  });
+  function sideBar() {
+    let nav = $("#tabs");
+    nav.querySelector(".slg") || (nav.insertAdjacentHTML("afterbegin", `<div class="slg" aria-hidden="true">${LOGO}</div>`), nav.insertAdjacentHTML("beforeend", '<div class="sfoot"></div>')), nav.querySelector(".sfoot").innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? "Can edit" : "Crew"}</small></span>`;
+  }
+  document.addEventListener("keydown", (e) => {
+    let typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    e.key === "/" && !typing && !$("#sheet .ov") && S.data ? (e.preventDefault(), $("#app [data-act=search]")?.click()) : e.key === "Escape" && $("#sheet .ov") && (e.preventDefault(), $("#sheet .sh .done, #sheet [data-act=sclose]")?.click());
+  });
   function openJob(id) {
+    if (desk()) return deskOpen(id);
     S.listY = scrollY, S.job = id, history.pushState({ job: id }, ""), scrollTo(0, 0), render("push");
   }
   function closeJob() {
@@ -761,7 +799,9 @@
   function render2() {
     if (S.key && !S.bad && !S.offline && !S.data) return skeletonScreen();
     if (!S.key || S.bad || !S.me || !S.data) return linkScreen();
-    $("#tabs").hidden = !1, document.querySelectorAll("#tabs button").forEach((b, i) => {
+    if ($("#tabs").hidden = !1, sideBar(), desk() && S.tab === "jobs")
+      return document.querySelectorAll("#tabs button").forEach((b) => b.toggleAttribute("aria-current", b.dataset.tab === "jobs")), deskJobs();
+    document.querySelectorAll("#tabs button").forEach((b, i) => {
       b.toggleAttribute("aria-current", !1), b.dataset.tab === S.tab && (b.setAttribute("aria-current", "page"), $("#tabs").style.setProperty("--ti", i));
     }), S.job ? jobScreen() : S.tab === "week" ? weekScreen() : S.tab === "jobs" ? jobsScreen() : S.tab === "cal" ? calScreen() : todayScreen();
   }
@@ -834,7 +874,7 @@
     if (e.target.id === "q") {
       S.q = e.target.value;
       let pos = e.target.selectionStart;
-      jobsScreen();
+      desk() && $(".jlist") ? $(".jlist").innerHTML = jobsHTML() : jobsScreen();
       let q = $("#q");
       q.focus(), q.setSelectionRange(pos, pos);
     }
