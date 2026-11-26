@@ -242,16 +242,60 @@ function jobsHTML(listOnly) {
     <label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div></header>
   <main class="w">${on.length ? `<div class="sec">In progress</div>${on.map(row).join('')}` : ''}${up.length ? `<div class="sec">Coming up</div>${up.map(row).join('')}` : ''}${!on.length && !up.length ? '<p class="empty" style="margin-top:20px">No jobs match.</p>' : ''}</main>`;
 }
-// Computer: one header across the top, the job list on the left and the chosen job on the right.
+// Computer: a compact job list on the left and a job overview built for a wide screen on the right.
+const JF = [['all', 'All'], ['on', 'Active'], ['up', 'Upcoming'], ['done', 'Done']];
+function deskList() {
+  const q = S.q.trim().toLowerCase(), f = S.jf || 'all';
+  const all = (S.data?.jobs || []).filter(j => !q || (j.name + ' ' + j.gc + ' ' + j.address + ' ' + j.id).toLowerCase().includes(q));
+  const grp = { on: all.filter(j => j.status === 'In Progress'), up: all.filter(j => j.status !== 'In Progress' && j.status !== 'Complete').sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999')),
+    done: all.filter(j => j.status === 'Complete') };
+  const row = j => { const meta = [j.gc, city(j.address)].filter(Boolean).join(' · '), soon = j.start && j.status !== 'In Progress' && j.start >= today() ? fmtDay(j.start, { month: 'short', day: 'numeric' }) : '';
+    return `<button class="jrow${j.id === S.job ? ' sel' : ''}" data-job="${j.id}"><span class="jn1">${jdot(j.id)}<b>${esc(j.name)}</b>${pwPill(j)}</span>
+      <span class="jn2"><span>${esc(meta)}</span>${canEdit() && jobTotal(j.id) ? `<em>${money(jobTotal(j.id))}</em>` : soon ? `<em>Starts ${soon}</em>` : ''}</span></button>`; };
+  const sect = (k, label) => grp[k].length && (f === 'all' || f === k) ? `<div class="jgh">${label}<span>${grp[k].length}</span></div>${grp[k].map(row).join('')}` : '';
+  const body = sect('on', 'In progress') + sect('up', 'Coming up') + sect('done', 'Complete');
+  return `<div class="jfil" role="group" aria-label="Show">${JF.map(([k, l]) => `<button data-jf="${k}" aria-pressed="${f === k}">${l}</button>`).join('')}</div>
+    <div class="jrows">${body || '<p class="empty" style="padding:24px 16px">No jobs match.</p>'}</div>`;
+}
+function deskPane(j) {
+  const site = j.site || {}, k = today(), sched = (S.data.schedule || []).filter(r => r.job === j.id && r.date >= k).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''));
+  const days = [...new Set((S.data.schedule || []).filter(r => r.job === j.id).map(r => r.date))].sort(), done = days.filter(d => d < k).length, on = days.includes(k), next = days.find(d => d > k);
+  const f = d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' }), na = v => /^n\/?a\b/i.test(String(v || '').trim()) ? '' : v;
+  const tile = (label, big, sub, extra = '') => `<div class="kpi"><span class="kl">${label}</span><b class="kb">${big}</b>${sub ? `<span class="ks">${sub}</span>` : ''}${extra}</div>`;
+  const bar = days.length ? `<div class="kbar">${days.length <= 40 ? days.map(d => `<i class="${d < k ? 'dn2' : d === k ? 'now' : ''}"></i>`).join('') : `<i class="dn2" style="flex:${done}"></i><i style="flex:${days.length - done}"></i>`}</div>` : '';
+  const prog = !days.length ? tile('Schedule', 'Not scheduled', 'Nothing on the calendar yet')
+    : tile('Schedule', on ? `Day ${done + 1} of ${days.length}` : done === days.length ? 'Wrapped up' : done ? `${done} of ${days.length} days` : `Starts ${fmtDay(days[0], { month: 'short', day: 'numeric' })}`,
+      next ? `Next: ${f(next)}` : done === days.length ? `Last day ${f(days[days.length - 1])}` : 'Last scheduled day', bar);
+  const nr = sched.find(r => r.date >= k), crewT = nr ? tile(nr.date === k ? 'Crew today' : 'Next crew', `<span class="kav">${nr.crew.map(n => `<i class="av" style="background:${avColor(n)}" title="${esc(n)}">${esc(first(n)[0] || '')}</i>`).join('')}</span>`, `${esc(nr.crew.map(first).join(', '))} · ${nr.date === k ? time12(nr.start) : f(nr.date)}`)
+    : tile('Crew', '—', 'No one scheduled');
+  const w = j.geo ? wxFor(j, k) : null, wxT = w ? tile('Weather today', `${wxIcon(w.code, 22)} ${w.hi}° <small>${w.lo}°</small>`, `${w.pop}% chance of rain`) : tile('Weather', '—', j.geo ? 'Loading' : 'No location yet');
+  const recs = recsFor(j.id), cost = canEdit() ? tile('Costs so far', money(recs.reduce((t, r) => t + (+r.amount || 0), 0)), `${recs.length} receipt${recs.length === 1 ? '' : 's'}`) : tile('Your receipts', String(recs.length), recs.length ? money(recs.reduce((t, r) => t + (+r.amount || 0), 0)) : 'None yet');
+  const cell = (v, tbd) => v ? `<span class="${tbd || /tbd|confirm/i.test(v) ? 'tbd' : ''}">${esc(v)}</span>` : '<span class="dash">—</span>';
+  let lastArea = null;
+  const rows = (j.scope || []).map((s, i) => { const head = s.area !== lastArea ? `<tr class="ga"><td colspan="${canEdit() ? 8 : 7}">${esc(s.area || 'General')}</td></tr>` : ''; lastArea = s.area;
+    return head + `<tr class="st"><td class="sc"><b>${esc(s.product || '—')}</b>${s.scope ? `<small>${esc(s.scope)}</small>` : ''}</td><td>${cell(na(s.color))}</td><td>${cell(na(s.sheen))}</td><td class="num">${cell(s.coats)}</td>
+      <td>${cell(na(s.sqft))}</td><td class="num">${cell(s.gallons ? (/\D/.test(s.gallons) ? s.gallons : s.gallons + ' gal') : '')}</td>${canEdit() ? `<td class="ed"><button class="tpen" data-sidx="${i}" aria-label="Edit this line" title="Edit this line">${PENCIL}</button></td>` : ''}</tr>`; }).join('');
+  const scope = `<section class="dcard"><div class="dch"><h3>Scope &amp; products</h3>${canEdit() ? '<button class="addl" data-act="sadd">+ Add line</button>' : ''}</div>
+    ${rows ? `<div class="tscroll"><table class="stbl"><thead><tr><th>Product &amp; scope</th><th>Color</th><th>Sheen</th><th class="num">Coats</th><th>Coverage</th><th class="num">Qty</th>${canEdit() ? '<th></th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`
+      : '<p class="empty">Scope hasn\'t been entered yet. Check with Riley before starting.</p>'}</section>`;
+  const wx5 = j.geo && WX.data[geoKey(j)] ? `<section class="dcard"><div class="dch"><h3>Weather at the site</h3></div><div class="wx5">${[...Array(5)].map((_, n) => { const d = addDays(k, n), x = wxFor(j, d); if (!x) return '';
+    return `<div><b>${n ? fmtDay(d, { weekday: 'short' }) : 'Today'}</b>${wxIcon(x.code, 22)}<span>${x.hi}° <i>${x.lo}°</i></span><small>${x.pop}%</small></div>`; }).join('')}</div></section>` : '';
+  const siteC = `<section class="dcard"><div class="dch"><h3>Site</h3>${canEdit() ? '<button class="addl" data-act="jedit">Edit</button>' : ''}</div>${siteMap(j)}
+    ${j.address ? `<div class="daddr">${PIN}<span>${esc(j.address)}</span></div>` : '<p class="empty">No address yet.</p>'}
+    ${Object.keys(site).length ? `<dl class="kv">${[['Contact', site.contact], ['Phone', site.phone], ['Email', site.email], ['Access', site.access]].filter(x => x[1]).map(([a, v]) => `<dt>${a}</dt><dd>${linkify(v)}</dd>`).join('')}</dl>` : ''}</section>`;
+  const schedC = `<section class="dcard"><div class="dch"><h3>On the schedule</h3></div>${sched.length ? sched.slice(0, 6).map(r => `<div class="dsr"><span class="dsd">${f(r.date)}<small>${time12(r.start)}</small></span><span class="dsc">${crewChips(r.crew)}</span></div>`).join('') + (sched.length > 6 ? `<p class="empty" style="margin:8px 0 0">+${sched.length - 6} more days</p>` : '') : '<p class="empty">Nothing upcoming.</p>'}</section>`;
+  return `<div class="jhd"><div class="jht"><h1>${jdot(j.id)}${esc(j.name)}</h1>
+      <p>${[j.id, j.gc && 'GC: ' + j.gc, j.type, city(j.address)].filter(Boolean).map(esc).join(' · ')}${j.status === 'In Progress' ? '<span class="pill on">In progress</span>' : j.status ? `<span class="pill">${esc(j.status)}</span>` : ''}${j.pw ? `<span class="pill pwp">PW ${usd(j.pw.rate)}/hr</span>` : ''}</p></div>
+    <div class="jha">${j.address ? `<a class="btn go" href="${mapsUrl(j.address)}" target="_blank" rel="noopener">${NAV}Navigate</a>` : ''}${canEdit() ? `<button class="btn" data-act="jedit">${PENCIL}Edit job</button>` : ''}</div></div>
+    ${j.crewNotes ? `<div class="note">${WARN}<span>${esc(j.crewNotes)}</span></div>` : ''}
+    <div class="kpis">${prog}${crewT}${wxT}${cost}</div>
+    <div class="dgrid"><div class="dmain">${scope}${rcptSection(j)}</div><div class="dside">${siteC}${wx5}${schedC}</div></div>`;
+}
 function deskJobs() {
-  if (!jobById(S.job)) { const { on, up } = jobLists(), all = S.data?.jobs || []; S.job = (on[0] || up[0] || all.find(j => j.status === 'In Progress') || all[0])?.id || null; }
+  if (!jobById(S.job)) { const all = S.data?.jobs || []; S.job = (all.find(j => j.status === 'In Progress') || all[0])?.id || null; }
   const head = `<header class="band djh">${TOPO('bar')}<div class="w"><div class="top"><div class="djt"><h1>Jobs</h1><label class="search">${SEARCH}<input id="q" type="search" placeholder="Search jobs, GCs, cities" value="${esc(S.q)}" autocomplete="off"></label></div><span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div></div></header>`;
-  let pane = '<p class="empty" style="padding:40px 8px">No jobs yet.</p>';
-  if (S.job) {
-    jobScreen(); const a = $('#app'), q = s => a.querySelector(s)?.outerHTML || '';
-    pane = `<div class="jhd"><div>${q('.jp h1')}${q('.jp > p')}</div>${q('.edb')}</div>${q('main')}`;
-  }
-  $('#app').innerHTML = `${head}<div class="w split"><aside class="jlist">${jobsHTML(true)}</aside><section class="pane" aria-label="Job details">${pane}</section></div>`;
+  const j = jobById(S.job);
+  $('#app').innerHTML = `${head}<div class="w split"><aside class="jlist">${deskList()}</aside><section class="pane" aria-label="Job details">${j ? deskPane(j) : '<p class="empty" style="padding:40px 8px">No jobs yet.</p>'}</section></div>`;
 }
 function jobScreen() {
   const j = jobById(S.job); if (!j) { S.job = null; return render(); }
@@ -647,7 +691,7 @@ const sourceFor = id => [...document.querySelectorAll(`#app [data-vt="${id}"], #
 // Card-to-page: the tapped card grows into the job page, and Back shrinks it back into place.
 function deskOpen(id) {
   const fromTab = S.tab !== 'jobs'; S.tab = 'jobs'; S.job = id; scrollTo(0, 0); render(fromTab ? 'tab' : undefined);
-  $('.jl.sel')?.scrollIntoView({ block: 'nearest' }); countUp();
+  $('.jrow.sel')?.scrollIntoView({ block: 'nearest' }); countUp();
 }
 function openJobFrom(id, src) {
   if (!vtOK() || !src || desk()) return openJob(id);
@@ -679,7 +723,7 @@ function cbarTitle() {
 function cbarUpdate() {
   const bar = $('#cbar'), band = $('#app .band'); if (!bar) return;
   const show = !!(band && S.me && S.data && scrollY > band.offsetHeight - bar.offsetHeight - 8);
-  bar.classList.toggle('show', show); bar.classList.toggle('job', !!S.job);
+  bar.classList.toggle('show', show); bar.classList.toggle('job', !!S.job && !(desk() && S.tab === 'jobs'));
 }
 addEventListener('scroll', () => requestAnimationFrame(cbarUpdate), { passive: true });
 /* Gestures. Only finished touches count: a swipe the phone itself takes (system back) cancels the touch, so nothing happens twice. */
@@ -911,7 +955,7 @@ document.addEventListener('dragend', () => { S.drag = null; dropClear(); documen
 function ctxClose() { $('#ctx')?.remove(); S.ctx = null; }
 document.addEventListener('contextmenu', e => {
   if (!desk() || !S.data) return;
-  const el = e.target.closest('[data-edrow], .card[data-vt], .jl[data-job], .lg[data-job], .as[data-job], [data-cj], .jhd');
+  const el = e.target.closest('[data-edrow], .card[data-vt], .jl[data-job], .jrow[data-job], .lg[data-job], .as[data-job], [data-cj], .jhd');
   if (!el) return ctxClose();
   let job = null, r = null;
   if (el.dataset.edrow) { r = JSON.parse(el.dataset.edrow); job = r.job; }
@@ -985,6 +1029,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button, .ov'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('ov') && e.target !== b) return;
   if (d.act === 'sclose') { closeSheet(); S.sAll = null; return; }
+  if (d.jf) { S.jf = d.jf; $('.jlist').innerHTML = deskList(); return; }
   if (d.themeSet) { buzz(); store.set('theme', d.themeSet === 'auto' ? null : d.themeSet); applyTheme(d.themeSet); document.querySelectorAll('[data-theme-set]').forEach(x => x.setAttribute('aria-pressed', x === b)); return; }
   if (d.sq !== undefined) { S.sq = d.sq; $('#sq').value = d.sq; return drawResults(); }
   if (d.sall) { S.sAll = d.sall; return drawResults(); }
@@ -1036,7 +1081,7 @@ function toast(msg, action) { let t = $('#toast'); if (!t) { t = document.create
   t.textContent = msg; t.classList.toggle('act', !!action); toast.fn = action?.fn || null;
   if (action) t.insertAdjacentHTML('beforeend', `<button data-act="toastfn">${esc(action.label)}</button>`);
   t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), action ? 7000 : 3200); }
-document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; if (desk() && $('.jlist')) { $('.jlist').innerHTML = jobsHTML(true); return; } jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
+document.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; if (desk() && $('.jlist')) { $('.jlist').innerHTML = deskList(); return; } jobsScreen(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { S.badge = 0; navigator.clearAppBadge?.().catch(() => {}); load(); } });
 // Installed app: check for schedule changes every 5 minutes while it sits in the background, and count them on the taskbar icon.
 if (matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches) setInterval(() => { if (document.hidden && S.key) load(); }, 5 * 60e3);
