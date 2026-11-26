@@ -22,6 +22,16 @@ const store = {
   get(k) { try { return JSON.parse(localStorage.getItem('hub.' + k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem('hub.' + k, JSON.stringify(v)); } catch (e) {} }
 };
+// Appearance: Auto follows the phone or computer; Light and Dark override it on the fly (each device keeps its own choice).
+const THEME_RULES = [];
+function applyTheme(mode) {
+  if (!THEME_RULES.length) for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch { continue; }
+    for (const r of rules) if (r.media && /prefers-color-scheme/.test(r.media.mediaText)) THEME_RULES.push([r, r.media.mediaText, /dark/.test(r.media.mediaText) ? 'dark' : 'light']); }
+  const forced = mode === 'dark' || mode === 'light';
+  for (const [r, orig, kind] of THEME_RULES) r.media.mediaText = forced ? (kind === mode ? 'all' : 'not all') : orig;
+  document.documentElement.style.colorScheme = forced ? mode : ''; document.documentElement.dataset.theme = forced ? mode : 'auto';
+}
+applyTheme(store.get('theme'));
 const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const mapsUrl = a => { a = String(a || '').replace(/\s*\(.*?\)\s*/g, ' ').trim(); return isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`; };
@@ -273,6 +283,9 @@ function settings() {
     <p class="empty" style="margin:0">Signed in as <b style="color:var(--ink)">${esc(S.me)}</b></p>
     <p class="empty" style="margin:4px 0 0;font-size:14px">Not you, or got a new phone? Ask Paul for your link.</p>
     <button class="btn go" data-act="refresh">Refresh schedule</button>
+    <div class="sec">Appearance</div>
+    <div class="seg2 seg3" role="group" aria-label="Appearance">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button data-theme-set="${v}" aria-pressed="${(store.get('theme') || 'auto') === v}">${l}</button>`).join('')}</div>
+    <p class="empty" style="margin:6px 0 0;font-size:13px">Auto matches your ${desk() ? 'computer' : 'phone'}'s setting. This only changes ${desk() ? 'this computer' : 'this phone'}.</p>
     ${installed() ? '' : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? '<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>' : '<li>In Chrome, tap the ⋮ menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>'}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? ' · schedule ' + new Date(S.data.updated).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</p></div></div>`);
@@ -972,6 +985,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button, .ov'); if (!b) return; const d = b.dataset;
   if (b.classList.contains('ov') && e.target !== b) return;
   if (d.act === 'sclose') { closeSheet(); S.sAll = null; return; }
+  if (d.themeSet) { buzz(); store.set('theme', d.themeSet === 'auto' ? null : d.themeSet); applyTheme(d.themeSet); document.querySelectorAll('[data-theme-set]').forEach(x => x.setAttribute('aria-pressed', x === b)); return; }
   if (d.sq !== undefined) { S.sq = d.sq; $('#sq').value = d.sq; return drawResults(); }
   if (d.sall) { S.sAll = d.sall; return drawResults(); }
   if (d.sjob) return searchGo(() => { if (S.job !== d.sjob) { S.tab = 'jobs'; openJob(d.sjob); } else render();
