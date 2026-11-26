@@ -503,6 +503,7 @@ body{background:var(--bg);min-height:100vh;min-height:100dvh}
 html.desk{--side:236px}
 html.desk.slim{--side:78px}
 html.desk body:has(#tabs:not([hidden])){padding-left:var(--side)}
+html.desk body{padding-bottom:24px}
 html.desk .tabbar{left:0 !important;top:0 !important;bottom:0 !important;right:auto !important;width:var(--side) !important;margin:0 !important;transform:none !important;flex-direction:column;transition:width .2s ease;overflow:hidden;justify-content:flex-start;align-items:stretch;gap:4px;padding:26px 14px 18px !important;border-radius:0 !important;border:0 !important;box-shadow:inset -1px 0 0 rgba(255,255,255,.06) !important;background:#0f1412 !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important}
 html.desk .tabbar button{flex:none;flex-direction:row;justify-content:flex-start;gap:14px;min-height:48px;padding:0 14px;font-size:15.5px;font-weight:650;color:#9aa69d;border-radius:12px;max-width:none}
 html.desk .tabbar button:hover{background:rgba(255,255,255,.05);color:#dfe7e1}
@@ -538,19 +539,39 @@ html.desk main.board .day .dh{position:static}
 html.desk main.board .as{display:flex;flex-direction:column;align-items:flex-start;gap:6px;position:relative;padding-right:40px}
 html.desk main.board .as .pen{position:absolute;top:14px;right:12px;margin:0}
 html.desk main.board .as .c{width:100%;flex-wrap:wrap;justify-content:space-between}
-/* Calendar: job names in the days, chosen day on the right */
-html.desk .calw{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0 26px;align-items:start}
-html.desk .calw>*{grid-column:2}
-html.desk .calw>.cal{grid-column:1;grid-row:1 / span 20}
-html.desk .calw>.day:first-of-type{margin-top:12px}
-html.desk .cg{gap:6px}
-html.desk .cd{min-height:104px;align-items:stretch;padding:8px 8px 8px}
-html.desk .cd b{align-self:flex-start}
+/* Calendar on a computer: fills the page, every job with its crew, weekdays get more room */
+html.desk .calw{display:flex;flex-direction:column;width:min(1800px,calc(100% - 48px));padding-bottom:0}
+html.desk .calw>.day,html.desk .calw>.sec{display:none}
+html.desk .calw>.legend{order:-1;display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+html.desk .calw>.legend .lg{margin:0}
+html.desk .calw .cal{margin-top:12px;display:flex;flex-direction:column;height:calc(100vh - 240px);padding:8px 10px 6px}
+html.desk .cw,html.desk .cg{grid-template-columns:repeat(5,minmax(0,1fr)) repeat(2,minmax(0,.6fr))}
+html.desk .cw{padding:4px 0 8px}
+html.desk .cw span{text-align:left;padding-left:8px}
+html.desk .cg{flex:1;min-height:0;grid-template-rows:repeat(var(--wk),minmax(0,1fr));gap:6px}
+html.desk .cd{min-height:0;align-items:stretch;padding:6px 6px 6px;overflow:hidden;justify-content:flex-start;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+html.desk .cd.out{box-shadow:none}
+html.desk .cd:hover{box-shadow:inset 0 0 0 1px var(--green2)}
+html.desk .cd b{align-self:flex-start;flex:none}
 html.desk .cd .bars{display:none}
-html.desk .cd .cn{display:flex;flex-direction:column;gap:3px;width:100%}
-html.desk .cd .cn i{font-style:normal;font-size:12px;font-weight:700;line-height:1.25;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,var(--c) 16%,transparent);box-shadow:inset 3px 0 0 var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-html.desk .cd .cn small{font-size:11.5px;color:var(--mute);text-align:left;padding-left:6px}
+html.desk .cd .cn{display:flex;flex-direction:column;gap:3px;width:100%;min-height:0}
+html.desk .cd.sel{background:none;box-shadow:inset 0 0 0 1px var(--line)}
+html.desk .cd.out.sel{box-shadow:none}
+html.desk .cd b{line-height:22px;height:22px;min-width:22px;font-size:13.5px}
+html.desk .mykey{display:none}
+html.desk .cd .cn i{font-style:normal;display:flex;flex-direction:column;gap:1px;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--c) 15%,transparent);box-shadow:inset 3px 0 0 var(--c);text-align:left;flex:none}
+html.desk .cd .cn i[hidden]{display:none}
+html.desk .cd .cn i b{font-size:12.5px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:auto;min-width:0;height:auto;border-radius:0;background:none;color:var(--ink)}
+html.desk .cd .cn i s{text-decoration:none;font-size:11.5px;color:var(--mute);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.desk .cd .cn .cmore{font-size:11.5px;font-weight:700;color:var(--mute);text-align:left;padding-left:7px;flex:none}
 html.desk .cd.out .cn{opacity:.6}
+html.desk .cd .ofl{align-self:flex-start;margin-top:2px}
+html.desk .cd.tdy b{background:var(--green);color:#fff}
+html.desk .mykey{margin:8px 4px 0}
+html.desk .dsheet{width:min(620px,100%)}
+html.desk .dsheet .day{margin:0;box-shadow:none;padding:0}
+html.desk .dsheet .day .dh{display:none}
+html.desk .dsheet>.btn.go{margin-top:12px}
 /* Jobs (computer): compact list + job overview */
 html.desk .djh .top>.logo{display:none}
 html.desk .djh .top{align-items:center;min-height:64px}
@@ -718,6 +739,19 @@ html.desk .sheet.ed>label.fl:has([data-ff=area],[data-ff=scope],[data-ff=product
 html.desk .sheet.ed>.btns{margin-top:6px}
 /* Dark mode: readable TBD tags in the scope table */
 @media(prefers-color-scheme:dark){html.desk .stbl .tbd{background:rgba(214,150,20,.2);color:#f0c46a}}
+/* Computer: Week and Calendar headers in one row (title and arrows beside the search/gear buttons) */
+html.desk .band:not(.tall):not(.djh) .w{position:relative}
+html.desk .band:not(.tall):not(.djh) .wk{position:absolute;left:0;right:116px;top:0;height:44px;margin:0;display:flex;align-items:center}
+html.desk .band:not(.tall):not(.djh) .wk b{font-size:26px;line-height:1.05;display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+html.desk .band:not(.tall):not(.djh) .wk b br{display:none}
+html.desk .band:not(.tall):not(.djh) .wk b .mt,html.desk .band:not(.tall):not(.djh) .wk b .jt{font-size:14px;font-weight:600}
+html.desk .band:not(.tall):not(.djh) .wk{justify-content:flex-start;gap:8px}
+html.desk .band:not(.tall):not(.djh) .wk b{margin-right:16px;min-width:0;flex:none}
+html.desk .band:not(.tall):not(.djh){padding-bottom:16px}
+html.desk .calw>.legend{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 94%,transparent);mask-image:linear-gradient(90deg,#000 94%,transparent);padding-right:40px}
+html.desk .calw>.legend::-webkit-scrollbar{display:none}
+html.desk .calw>.legend .lg{flex:none}
+html.desk .wk .jt{position:static;background:none;color:#9cc4a8;padding:0;border-radius:0}
 @keyframes deskIn{from{opacity:0;transform:translateY(14px) scale(.98)}}
 @keyframes deskOut{to{opacity:0;transform:translateY(8px) scale(.98)}}
 </style>
