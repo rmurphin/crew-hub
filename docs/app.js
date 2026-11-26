@@ -45,15 +45,18 @@
     { n: "COLUMBIA RIVER", x: 2, y: -71.5, river: !0 }
   ], DESK_MAP = { ok: !1, loading: !1 };
   function loadDeskMap() {
-    DESK_MAP.ok || DESK_MAP.loading || !desk() || (DESK_MAP.loading = !0, fetch("topo-desk.svg").then((r) => r.ok ? r.text() : Promise.reject()).then((svg) => {
+    return DESK_MAP.ok || DESK_MAP.loading || !desk() ? DESK_MAP.p : (DESK_MAP.loading = !0, DESK_MAP.p = fetch("topo-desk.svg").then((r) => r.ok ? r.text() : Promise.reject()).then((svg) => {
       document.querySelector("#topo-map").insertAdjacentHTML("afterend", `<g id="topo-desk">${svg}</g>`), DESK_MAP.ok = !0, S.data && !S.splashHold && render();
     }).catch(() => {
       DESK_MAP.loading = !1;
     }));
   }
   var SPOTS = { today: { x: "55%", y: 100, k: 2.6, few: 1 }, bar: { x: "40%", y: 30, k: 2.6, adams: "b", few: 1 }, job: { x: "47%", y: 24, k: 2.6, adams: "b", few: 1 }, splash: { x: "50%", y: () => Math.round(innerHeight * 0.5), k: 2.6, few: 1 }, link: { x: "47%", y: () => Math.round(Math.max(510, innerHeight * 0.64)), k: 2.6 } }, TOPO = (spot) => {
-    let { x, k, adams = "a", few } = SPOTS[spot], y = typeof SPOTS[spot].y == "function" ? SPOTS[spot].y() : SPOTS[spot].y, G = "#9cc4a8", W = "#eef2ee", wide = desk() && spot !== "splash" && spot !== "link" && DESK_MAP.ok;
-    wide ? (k = 2.6 * Math.max(1, (innerWidth - 236) / 2e3), (spot === "bar" || spot === "job") && (x = "68%")) : desk() && spot === "splash" && (k = 2.6 * Math.min(2.4, Math.max(1, innerWidth / 820)));
+    let { x, k, adams = "a", few } = SPOTS[spot], y = typeof SPOTS[spot].y == "function" ? SPOTS[spot].y() : SPOTS[spot].y, G = "#9cc4a8", W = "#eef2ee", wide = desk() && spot !== "link" && DESK_MAP.ok;
+    if (spot === "splash") {
+      let b = wide ? [-440, 420, -200, 210] : [-115, 100, -90, 120], sw2 = innerWidth, sh = innerHeight;
+      k = 1.03 * Math.max(sw2 / (b[1] - b[0]), sh / (b[3] - b[2])), x = Math.round(sw2 / 2 - k * (b[0] + b[1]) / 2), y = Math.round(sh / 2 - k * (b[2] + b[3]) / 2);
+    } else wide && (k = 2.6 * Math.max(1, (innerWidth - 236) / 2e3), (spot === "bar" || spot === "job") && (x = "68%"));
     let t = (px, py, txt, size, wt, fill, op, end, more = "") => `<text x="${px.toFixed(1)}" y="${py.toFixed(1)}" font-size="${size}" font-weight="${wt}" fill="${fill}" opacity="${op}" letter-spacing=".07em"${end ? ' text-anchor="end"' : ""}${more}>${txt}</text>`, marks = MARKS.filter((m) => !few || m.main || m.side).map((m) => {
       let px = m.x * k, py = -m.y * k;
       if (m.town) return `<circle cx="${px}" cy="${py}" r="2.2" fill="${W}" opacity=".5"/>` + t(px + 5, py + 3.5, m.n, 9, 700, W, 0.5);
@@ -1144,8 +1147,12 @@
   var splash = $("#splash");
   render("tab");
   if (splash) {
-    let map = TOPO("splash"), lines = map.slice(0, map.indexOf("</g>") + 4).replace('<use href="#topo-map"/>', '<use href="#topo-map"/>' + topo_fill_default);
-    splash.insertAdjacentHTML("afterbegin", lines + "</svg></svg>"), S.splashHold = !0;
+    let deskReady = desk() ? Promise.race([DESK_MAP.p || Promise.resolve(), new Promise((r) => setTimeout(r, 900))]).catch(() => {
+    }) : Promise.resolve(), putMap = () => {
+      let map = TOPO("splash"), lines = map.slice(0, map.indexOf("</g>") + 4).replace('<use href="#topo-map"/>', '<use href="#topo-map"/>' + topo_fill_default);
+      splash.insertAdjacentHTML("afterbegin", lines + "</svg></svg>");
+    };
+    S.splashHold = !0;
     let frames = (n) => new Promise((r) => {
       let f = () => --n ? requestAnimationFrame(f) : r();
       requestAnimationFrame(f);
@@ -1154,7 +1161,7 @@
         load(), loadWeather();
       }, 520));
     };
-    waitLoad = !!(S.key && S.data), fontReady.then(() => frames(2)).then(() => {
+    waitLoad = !!(S.key && S.data), Promise.all([fontReady, deskReady]).then(() => (putMap(), frames(2))).then(() => {
       splash.classList.add("go"), setTimeout(finish, 2400);
     }), setTimeout(finish, 4200);
   }
