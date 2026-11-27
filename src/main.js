@@ -18,9 +18,11 @@ const mondayOf = k => { const d = fromKey(k); return addDays(k, -((d.getDay() + 
 const fmtDay = (k, o) => fromKey(k).toLocaleDateString('en-US', o);
 const first = n => String(n || '').split(' ')[0];
 const time12 = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return `${(h % 12) || 12}:${pad(m || 0)} ${h < 12 ? 'AM' : 'PM'}`; };
+// Demo link (?demo): made-up company data, changes stay on the screen only, and it never touches a real sign-in or saved schedule.
+const DEMO = new URLSearchParams(location.search).has('demo'), DEMO_SKIP = ['key', 'me', 'data', 'changed'];
 const store = {
-  get(k) { try { return JSON.parse(localStorage.getItem('hub.' + k)); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem('hub.' + k, JSON.stringify(v)); } catch (e) {} }
+  get(k) { if (DEMO && DEMO_SKIP.includes(k)) return null; try { return JSON.parse(localStorage.getItem((DEMO ? 'hub.demo.' : 'hub.') + k)); } catch (e) { return null; } },
+  set(k, v) { if (DEMO && DEMO_SKIP.includes(k)) return; try { localStorage.setItem((DEMO ? 'hub.demo.' : 'hub.') + k, JSON.stringify(v)); } catch (e) {} }
 };
 // Appearance: Auto follows the phone or computer; Light and Dark override it on the fly (each device keeps its own choice).
 const THEME_RULES = [];
@@ -91,7 +93,7 @@ const LOGO = '<div class="logo">MP<i>NW</i><small>CREW HUB</small></div>';
 /* ---------- state ---------- */
 // Sign-in is a personal link: hub-link?u=CODE. Each person's code lives in Paul's sheet; changing it retires the old link.
 // The code stays in the address on purpose, so an iPhone home-screen icon (which keeps its own storage) opens already signed in.
-const urlKey = new URLSearchParams(location.search).get('u');
+const urlKey = DEMO ? 'demo' : new URLSearchParams(location.search).get('u');
 if (urlKey && urlKey !== store.get('key')) { store.set('key', urlKey); store.set('me', null); store.set('data', null); }
 const S = { key: urlKey || store.get('key'), bad: false, data: store.get('data'), me: store.get('me'), tab: 'today', week: mondayOf(today()), month: today().slice(0, 8) + '01', sel: today(), mine: true, q: '', job: null, offline: false, changed: new Set(Object.keys(store.get('changed') || {})), glowDone: new Set() };
 const jobById = id => (S.data?.jobs || []).find(j => j.id === id);
@@ -111,18 +113,28 @@ function trackChanges(prev, next) {
   if (prev?.schedule) { const a = daySigs(prev.schedule), b = daySigs(next.schedule); for (const d of new Set([...Object.keys(a), ...Object.keys(b)])) if (a[d] !== b[d] && d >= today()) { map[d] = now; fresh.push(d); } }
   store.set('changed', map); S.changed = new Set(Object.keys(map)); return fresh.sort();
 }
+// Demo dates are stored as "@m+N" (N days after this week's Monday) so the demo always looks current.
+function demoDates(d) {
+  const mon = mondayOf(today()), fix = v => typeof v === 'string' && /^@m[+-]\d+$/.test(v) ? addDays(mon, +v.slice(2)) : v === '@now' ? new Date().toISOString().slice(0, 16) : v;
+  const walk = o => { if (Array.isArray(o)) return o.map(walk); if (o && typeof o === 'object') { for (const k in o) o[k] = walk(o[k]); return o; } return fix(o); };
+  return walk(d);
+}
 async function load(manual) {
   if (!S.key) return render();
+  if (DEMO && S.data) { render(); if (manual) toast('Demo: nothing to refresh. Your changes stay until you close it.'); return; }
   let fresh = [];
   try {
-    const r = await fetch(PREVIEW ? DATA_URL : DATA_URL + '?u=' + encodeURIComponent(S.key), { cache: 'no-store' });
+    const r = await fetch(DEMO ? 'demo.json' : PREVIEW ? DATA_URL : DATA_URL + '?u=' + encodeURIComponent(S.key), { cache: 'no-store' });
     if (!r.ok) throw new Error('http');
-    const d = await r.json(); if (__PREVIEW__) { d.me = (d.mockKeys || {})[S.key] || null; d.canEdit = (d.mockEditors || []).includes(d.me); if (!d.canEdit) { d.myReceipts = (d.receipts || []).filter(r => r.by === d.me); delete d.receipts; } } // preview only: sample data carries test codes
+    let d = await r.json(); if (DEMO) d = demoDates(d);
+    if (DEMO) { d.me = d.demoUser; d.canEdit = true; }
+    else if (__PREVIEW__) { d.me = (d.mockKeys || {})[S.key] || null; d.canEdit = (d.mockEditors || []).includes(d.me); if (!d.canEdit) { d.myReceipts = (d.receipts || []).filter(r => r.by === d.me); delete d.receipts; } } // preview only: sample data carries test codes
     S.offline = false;
     if (!d.me) { S.bad = true; S.me = S.data = null; store.set('me', null); store.set('data', null); }
     else { S.bad = false; S.me = d.me; fresh = trackChanges(S.data, d); S.data = d; store.set('me', d.me); store.set('data', d); }
   } catch (e) { S.offline = true; }
   render(); loadWeather();
+  if (DEMO && S.data && !S.demoHi) { S.demoHi = true; setTimeout(() => toast('Demo company. Tap around and try anything: nothing is saved.'), S.splashHold ? 3200 : 300); }
   if (fresh.length && document.hidden && navigator.setAppBadge) { S.badge = (S.badge || 0) + fresh.length; navigator.setAppBadge(S.badge).catch(() => {}); }
   if (fresh.length) toast('Schedule updated: ' + (fresh.length > 3 ? fresh.length + ' days changed' : fresh.map(d => fmtDay(d, { weekday: 'short', month: 'short', day: 'numeric' })).join(', ')));
   else if (manual) toast(S.offline ? 'No signal. Showing the last schedule.' : 'Schedule is up to date.');
@@ -180,7 +192,7 @@ function todayScreen() {
   const todayBlock = mine.length ? mine.map(r => assignCard(r, evening ? 'Today' : 'Today', !!evening)).join('') : `<div class="card calm${evening ? ' sm' : ' hero'}"><svg class="ctopo" viewBox="-30 -18 60 36" aria-hidden="true"><use href="#topo-map"/></svg><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || 'No work today') : 'Not scheduled today'}</div><div class="empty">${off ? '' : 'Nothing on the schedule for you. Check with Riley if that seems wrong.'}</div></div>`;
   const tmrLabel = fmtDay(tmr, { weekday: 'short', month: 'short', day: 'numeric' });
   $('#app').innerHTML = `<header class="band tall">${TOPO('today')}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
-    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: 'long', month: 'long', day: 'numeric' })}</p>${updated()}</div></div></header>`;
+    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: 'long', month: 'long', day: 'numeric' })}</p>${DEMO ? '<span class="demo-pill">Demo · made-up company</span>' : updated()}</div></div></header>`;
   const colA = evening ? tmrRows.map(r => assignCard(r, 'Tomorrow · ' + tmrLabel, false)).join('') : todayBlock;
   const colB = (evening ? `<div class="sec">Earlier today</div>` + todayBlock
       : tmrRows.length ? `<div class="sec">Tomorrow · ${tmrLabel}</div>` + tmrRows.map(r => assignCard(r, fmtDay(tmr, { weekday: 'long' }), true)).join('')
@@ -420,10 +432,10 @@ async function edSave(del) {
     : { date: e.from, thru: e.multi ? e.thru : '', job: e.job, start: e.start, crew: e.crew, notes: e.notes.trim() };
   const body = { u: S.key, action: del ? 'delete' : e.row ? 'update' : 'add', row: e.row, expect: e.expect, item };
   try {
-    const res = __PREVIEW__ ? previewWrite(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+    const res = (__PREVIEW__ || DEMO) ? previewWrite(body) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'Could not save.');
     S.ed = null; closeSheet();
-    if (__PREVIEW__) { render(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); } else { await load(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); }
+    if (__PREVIEW__ || DEMO) { render(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); } else { await load(); toast(del ? 'Removed from the schedule.' : 'Saved to the schedule.'); }
   } catch (err) { e.busy = false; e.err = S.offline || !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawEditor(); }
 }
 function previewWrite(b) {  // preview only: apply the change to the sample data the way the sheet script would
@@ -505,11 +517,11 @@ async function formSave(del) {
   const item = Object.fromEntries(Object.entries(f.v).map(([k, x]) => [k, typeof x === 'string' ? x.trim() : x]));
   const body = { u: S.key, action: f.kind, op: del ? 'delete' : f.row ? 'update' : 'add', row: f.row, expect: f.expect, job: f.job, item };
   try {
-    const res = __PREVIEW__ ? (f.kind === 'rcpt' ? previewRcpt(body) : previewForm(body)) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
+    const res = (__PREVIEW__ || DEMO) ? (f.kind === 'rcpt' ? previewRcpt(body) : previewForm(body)) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'Could not save.');
     S.form = null; closeSheet();
     if (f.kind === 'job' && !f.row) S.job = item.id;
-    if (__PREVIEW__) render(); else await load();
+    if (__PREVIEW__ || DEMO) render(); else await load();
     buzz(); toast(del ? 'Deleted.' : f.kind === 'rcpt' ? 'Receipt saved.' : 'Saved to the sheet.');
   } catch (err) { f.busy = false; f.err = !navigator.onLine ? 'No signal. Nothing was saved, try again when you have service.' : err.message; drawForm(); }
 }
@@ -871,7 +883,7 @@ const setDesk = () => document.documentElement.classList.toggle('desk', desk());
 setDesk(); loadDeskMap(); deskMQ.addEventListener?.('change', () => { setDesk(); loadDeskMap(); if (S.data && !S.splashHold) { if (!desk() && S.tab === 'jobs') S.job = null; render(); } });
 function sideBar() {
   const nav = $('#tabs'); if (!nav.querySelector('.slg')) { nav.insertAdjacentHTML('afterbegin', `<div class="slg" aria-hidden="true">${LOGO}</div>`); nav.insertAdjacentHTML('beforeend', '<div class="sfoot"></div>'); }
-  nav.querySelector('.sfoot').innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? 'Can edit' : 'Crew'}</small></span>`;
+  nav.querySelector('.sfoot').innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${DEMO ? 'Demo' : canEdit() ? 'Can edit' : 'Crew'}</small></span>`;
   if (!nav.querySelector('.scol')) nav.querySelector('.slg').insertAdjacentHTML('afterend', `<button class="scol" data-act="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar">${I('<path d="M15 6l-6 6 6 6"/>', 18)}</button>`);
   nav.querySelectorAll('button[data-tab]').forEach(b => { b.title = b.textContent.trim(); });
 }
@@ -895,11 +907,11 @@ async function schedPost(body, msg, undo) {
   toast('Saving…');
   try {
     const b = { u: S.key, ...body };
-    const res = __PREVIEW__ ? previewWrite(b) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
+    const res = (__PREVIEW__ || DEMO) ? previewWrite(b) : await fetch(DATA_URL, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
     if (!res.ok) throw new Error(res.error || 'Could not save.');
-    if (__PREVIEW__) render(); else await load();
+    if (__PREVIEW__ || DEMO) render(); else await load();
     toast(msg, undo ? { label: 'Undo', fn: () => schedPost(undo, 'Change undone.') } : null);
-  } catch (err) { toast(S.offline || !navigator.onLine ? 'No signal. Nothing was saved.' : err.message); if (!__PREVIEW__) load(); }
+  } catch (err) { toast(S.offline || !navigator.onLine ? 'No signal. Nothing was saved.' : err.message); if (!__PREVIEW__ && !DEMO) load(); }
 }
 const itemOf = (r, over = {}) => ({ date: r.from || r.date, thru: r.thru || '', job: r.job, start: r.start, crew: [...r.crew], notes: r.notes || '', ...over });
 const multiDay = r => !!(r.thru && r.thru !== (r.from || r.date));
