@@ -11,7 +11,7 @@ await build({ entryPoints: ['src/main.js'], bundle: true, minifySyntax: true, fo
   define: { __FEED__: JSON.stringify(feed), __PREVIEW__: 'false' }, outfile: 'docs/app.js' });
 copyFileSync('www/index.html', 'docs/index.html');
 // first-time setup from the working folder: copy assets if docs/ doesn't have them yet
-for (const f of ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'fonts/archivo.woff2'])
+for (const f of ['topo-desk.svg', 'demo.json', 'icon-pc-512.png', 'manifest-pc.webmanifest', 'sc-week.png', 'sc-cal.png', 'sc-newjob.png', 'sc-receipt.png', 'icon-pc-16.png', 'icon-pc-32.png', 'icon-pc-48.png', 'icon-pc-64.png', 'icon-pc-96.png', 'icon-pc-128.png', 'icon-pc-256.png', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'fonts/archivo.woff2'])
   if (!existsSync('docs/' + f) && existsSync('www/' + f)) copyFileSync('www/' + f, 'docs/' + f);
 writeFileSync('docs/sw.js', readFileSync('src/sw.js', 'utf8').replace('__BUILD__', stamp));
 const js = readFileSync('docs/app.js', 'utf8');
