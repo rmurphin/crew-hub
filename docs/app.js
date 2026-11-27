@@ -19,19 +19,21 @@
     if (!t) return "";
     let [h, m] = t.split(":").map(Number);
     return `${h % 12 || 12}:${pad(m || 0)} ${h < 12 ? "AM" : "PM"}`;
-  }, store = {
+  }, DEMO = new URLSearchParams(location.search).has("demo"), DEMO_SKIP = ["key", "me", "data", "changed"], store = {
     get(k) {
+      if (DEMO && DEMO_SKIP.includes(k)) return null;
       try {
-        return JSON.parse(localStorage.getItem("hub." + k));
+        return JSON.parse(localStorage.getItem((DEMO ? "hub.demo." : "hub.") + k));
       } catch {
         return null;
       }
     },
     set(k, v) {
-      try {
-        localStorage.setItem("hub." + k, JSON.stringify(v));
-      } catch {
-      }
+      if (!(DEMO && DEMO_SKIP.includes(k)))
+        try {
+          localStorage.setItem((DEMO ? "hub.demo." : "hub.") + k, JSON.stringify(v));
+        } catch {
+        }
     }
   }, THEME_RULES = [];
   function applyTheme(mode) {
@@ -81,7 +83,7 @@
       return tri + t(nx, ny, m.n, m.main ? 10.5 : 9, m.main ? 800 : 750, col, op, end) + t(nx, fy, m.f, m.main ? 8.5 : 8, 600, col, op * 0.8, end);
     }).join("");
     return `<svg class="topo${wide ? " wide" : ""}" aria-hidden="true" focusable="false"><svg x="${x}" y="${y}" overflow="visible"><g transform="scale(${k})"><use href="#${wide ? "topo-desk" : "topo-map"}"/></g>${marks}</svg></svg>`;
-  }, LOGO = '<div class="logo">MP<i>NW</i><small>CREW HUB</small></div>', urlKey = new URLSearchParams(location.search).get("u");
+  }, LOGO = '<div class="logo">MP<i>NW</i><small>CREW HUB</small></div>', urlKey = DEMO ? "demo" : new URLSearchParams(location.search).get("u");
   urlKey && urlKey !== store.get("key") && (store.set("key", urlKey), store.set("me", null), store.set("data", null));
   var S = { key: urlKey || store.get("key"), bad: !1, data: store.get("data"), me: store.get("me"), tab: "today", week: mondayOf(today()), month: today().slice(0, 8) + "01", sel: today(), mine: !0, q: "", job: null, offline: !1, changed: new Set(Object.keys(store.get("changed") || {})), glowDone: /* @__PURE__ */ new Set() }, jobById = (id) => (S.data?.jobs || []).find((j) => j.id === id), rowsOn = (k) => (S.data?.schedule || []).filter((r) => r.date === k).sort((a, b) => (a.start || "99").localeCompare(b.start || "99")), mineOn = (k) => rowsOn(k).filter((r) => r.crew.includes(S.me)), cleanAddr = (a) => String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), city = (a) => {
     let p = cleanAddr(a).split(",");
@@ -101,18 +103,33 @@
     }
     return store.set("changed", map), S.changed = new Set(Object.keys(map)), fresh.sort();
   }
+  function demoDates(d) {
+    let mon = mondayOf(today()), fix = (v) => typeof v == "string" && /^@m[+-]\d+$/.test(v) ? addDays(mon, +v.slice(2)) : v === "@now" ? (/* @__PURE__ */ new Date()).toISOString().slice(0, 16) : v, walk = (o) => {
+      if (Array.isArray(o)) return o.map(walk);
+      if (o && typeof o == "object") {
+        for (let k in o) o[k] = walk(o[k]);
+        return o;
+      }
+      return fix(o);
+    };
+    return walk(d);
+  }
   async function load(manual) {
     if (!S.key) return render();
+    if (DEMO && S.data) {
+      render(), manual && toast("Demo: nothing to refresh. Your changes stay until you close it.");
+      return;
+    }
     let fresh = [];
     try {
-      let r = await fetch(PREVIEW ? DATA_URL : DATA_URL + "?u=" + encodeURIComponent(S.key), { cache: "no-store" });
+      let r = await fetch(DEMO ? "demo.json" : PREVIEW ? DATA_URL : DATA_URL + "?u=" + encodeURIComponent(S.key), { cache: "no-store" });
       if (!r.ok) throw new Error("http");
       let d = await r.json();
-      S.offline = !1, d.me ? (S.bad = !1, S.me = d.me, fresh = trackChanges(S.data, d), S.data = d, store.set("me", d.me), store.set("data", d)) : (S.bad = !0, S.me = S.data = null, store.set("me", null), store.set("data", null));
+      DEMO && (d = demoDates(d)), DEMO && (d.me = d.demoUser, d.canEdit = !0), S.offline = !1, d.me ? (S.bad = !1, S.me = d.me, fresh = trackChanges(S.data, d), S.data = d, store.set("me", d.me), store.set("data", d)) : (S.bad = !0, S.me = S.data = null, store.set("me", null), store.set("data", null));
     } catch {
       S.offline = !0;
     }
-    render(), loadWeather(), fresh.length && document.hidden && navigator.setAppBadge && (S.badge = (S.badge || 0) + fresh.length, navigator.setAppBadge(S.badge).catch(() => {
+    render(), loadWeather(), DEMO && S.data && !S.demoHi && (S.demoHi = !0, setTimeout(() => toast("Demo company. Tap around and try anything: nothing is saved."), S.splashHold ? 3200 : 300)), fresh.length && document.hidden && navigator.setAppBadge && (S.badge = (S.badge || 0) + fresh.length, navigator.setAppBadge(S.badge).catch(() => {
     })), fresh.length ? toast("Schedule updated: " + (fresh.length > 3 ? fresh.length + " days changed" : fresh.map((d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" })).join(", "))) : manual && toast(S.offline ? "No signal. Showing the last schedule." : "Schedule is up to date.");
   }
   var usd = (n) => "$" + Number(n).toFixed(2), DOLLAR = I('<path d="M12 3v18M16.5 7.5c-.8-1.3-2.4-2-4.5-2-2.6 0-4.2 1.3-4.2 3.1 0 4.5 9 2.3 9 6.8 0 1.9-1.8 3.2-4.6 3.2-2.3 0-4-.8-4.9-2.3"/>', 18), pwStrip = (j) => j?.pw ? `<div class="pw">${DOLLAR}<span class="pwk">Prevailing wage</span><b>${usd(j.pw.rate)}<small>/hr</small></b></div>` : "", pwPill = (j) => j?.pw ? '<span class="pill pwp">PW</span>' : "", AV = ["#4f7f68", "#5b7fa8", "#a8834a", "#9a6a5a", "#7a6fa6", "#4f8a87", "#8c6a86", "#6f7f4f"], avColor = (n) => AV[[...String(n)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % AV.length], crewChips = (names, skipMe) => names.filter((n) => !(skipMe && n === S.me)).map((n) => `<span class="chip${n === S.me ? " me" : ""}"><i class="av" style="background:${avColor(n)}">${esc(first(n)[0] || "")}</i>${esc(first(n))}</span>`).join(""), updated = () => {
@@ -152,7 +169,7 @@
     }
     let tmr = addDays(k, 1), tmrRows = mineOn(tmr), evening = (/* @__PURE__ */ new Date()).getHours() >= 15 && tmrRows.length, todayBlock = mine.length ? mine.map((r) => assignCard(r, "Today", !!evening)).join("") : `<div class="card calm${evening ? " sm" : " hero"}"><svg class="ctopo" viewBox="-30 -18 60 36" aria-hidden="true"><use href="#topo-map"/></svg><div class="kick">Today</div><div class="jn">${off ? esc(off.notes || "No work today") : "Not scheduled today"}</div><div class="empty">${off ? "" : "Nothing on the schedule for you. Check with Riley if that seems wrong."}</div></div>`, tmrLabel = fmtDay(tmr, { weekday: "short", month: "short", day: "numeric" });
     $("#app").innerHTML = `<header class="band tall">${TOPO("today")}<div class="w"><div class="top">${LOGO}<span class="tbtns"><button class="icb" data-act="search" aria-label="Search everything">${SEARCH}</button><button class="icb" data-act="settings" aria-label="Settings">${GEAR}</button></span></div>
-    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: "long", month: "long", day: "numeric" })}</p>${updated()}</div></div></header>`;
+    <div class="hi"><h1>Hi ${esc(first(S.me))}</h1><p>${fmtDay(k, { weekday: "long", month: "long", day: "numeric" })}</p>${DEMO ? '<span class="demo-pill">Demo \xB7 made-up company</span>' : updated()}</div></div></header>`;
     let colA = evening ? tmrRows.map((r) => assignCard(r, "Tomorrow \xB7 " + tmrLabel, !1)).join("") : todayBlock, colB = (evening ? '<div class="sec">Earlier today</div>' + todayBlock : tmrRows.length ? `<div class="sec">Tomorrow \xB7 ${tmrLabel}</div>` + tmrRows.map((r) => assignCard(r, fmtDay(tmr, { weekday: "long" }), !0)).join("") : next ? `<div class="sec">Next up \xB7 ${fmtDay(next.d, { weekday: "short", month: "short", day: "numeric" })}</div>` + next.r.map((r) => assignCard(r, fmtDay(next.d, { weekday: "long" }), !0)).join("") : "") + `<button class="rbtn" data-act="radd">${RCPT}<span><b>Add a receipt</b><small>Gas, supplies, food. Type it in, it goes to the office.</small></span></button>`;
     $("#app").innerHTML += `<main class="w lift tcols"><div class="col">${colA}</div><div class="col">${colB}</div></main>`;
   }
@@ -365,12 +382,27 @@
     e.busy = !0, drawEditor();
     let item = e.off ? { date: e.from, thru: "", job: "", start: "", crew: [], notes: e.notes.trim() } : { date: e.from, thru: e.multi ? e.thru : "", job: e.job, start: e.start, crew: e.crew, notes: e.notes.trim() }, body = { u: S.key, action: del ? "delete" : e.row ? "update" : "add", row: e.row, expect: e.expect, item };
     try {
-      let res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
+      let res = DEMO ? previewWrite(body) : await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
       if (!res.ok) throw new Error(res.error || "Could not save.");
-      S.ed = null, closeSheet(), await load(), toast(del ? "Removed from the schedule." : "Saved to the schedule.");
+      S.ed = null, closeSheet(), DEMO ? (render(), toast(del ? "Removed from the schedule." : "Saved to the schedule.")) : (await load(), toast(del ? "Removed from the schedule." : "Saved to the schedule."));
     } catch (err) {
       e.busy = !1, e.err = S.offline || !navigator.onLine ? "No signal. Nothing was saved, try again when you have service." : err.message, drawEditor();
     }
+  }
+  function previewWrite(b) {
+    let sched = S.data.schedule, rows = new Set(sched.map((s) => s.row)), it = b.item, strip = (r) => {
+      for (let i = sched.length - 1; i >= 0; i--) sched[i].row === r && sched.splice(i, 1);
+    };
+    if (b.action !== "add" && strip(b.row), b.action === "delete") return { ok: !0 };
+    let row = b.row || Math.max(1, ...rows) + 1, off = new Set(sched.filter((s) => !s.job).map((s) => s.date)), days = [it.date];
+    if (it.job && it.thru > it.date) {
+      days = [];
+      for (let d = it.date; d <= it.thru; d = addDays(d, 1)) {
+        let w = fromKey(d).getDay();
+        w && w < 6 && !off.has(d) && days.push(d);
+      }
+    }
+    return days.forEach((d) => sched.push({ date: d, job: it.job, crew: it.crew, start: it.start, notes: it.notes, row, from: it.date, thru: it.thru })), { ok: !0 };
   }
   var STATUSES = ["Not Started", "In Progress", "Complete"], JOB_FIELDS = [
     ["name", "Job name"],
@@ -474,12 +506,37 @@
     f.busy = !0, drawForm();
     let item = Object.fromEntries(Object.entries(f.v).map(([k, x]) => [k, typeof x == "string" ? x.trim() : x])), body = { u: S.key, action: f.kind, op: del ? "delete" : f.row ? "update" : "add", row: f.row, expect: f.expect, job: f.job, item };
     try {
-      let res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
+      let res = DEMO ? f.kind === "rcpt" ? previewRcpt(body) : previewForm(body) : await fetch(DATA_URL, { method: "POST", body: JSON.stringify(body) }).then((r) => r.json());
       if (!res.ok) throw new Error(res.error || "Could not save.");
-      S.form = null, closeSheet(), f.kind === "job" && !f.row && (S.job = item.id), await load(), buzz(), toast(del ? "Deleted." : f.kind === "rcpt" ? "Receipt saved." : "Saved to the sheet.");
+      S.form = null, closeSheet(), f.kind === "job" && !f.row && (S.job = item.id), DEMO ? render() : await load(), buzz(), toast(del ? "Deleted." : f.kind === "rcpt" ? "Receipt saved." : "Saved to the sheet.");
     } catch (err) {
       f.busy = !1, f.err = navigator.onLine ? err.message : "No signal. Nothing was saved, try again when you have service.", drawForm();
     }
+  }
+  function previewForm(b) {
+    let jobs = S.data.jobs, it = b.item;
+    if (b.action === "job") {
+      let j2 = jobs.find((x) => x.id === (b.expect?.id || it.id));
+      return j2 || (j2 = { id: it.id, scope: [], row: jobs.length + 2 }, jobs.push(j2)), Object.assign(j2, {
+        name: it.name,
+        gc: it.gc,
+        address: it.address,
+        type: it.type,
+        status: it.status,
+        start: it.start,
+        crewNotes: it.crewNotes,
+        pw: +it.rate > 0 ? { rate: +it.rate } : null,
+        site: Object.fromEntries(["contact", "phone", "email", "access"].filter((k) => it[k]).map((k) => [k, it[k]]))
+      }), { ok: !0 };
+    }
+    let j = jobs.find((x) => x.id === b.job), i = j.scope.findIndex((s) => s.row === b.row);
+    if (b.op === "delete") j.scope.splice(i, 1);
+    else if (i >= 0) Object.assign(j.scope[i], it);
+    else {
+      let after = j.scope.map((s) => s.area).lastIndexOf(it.area);
+      j.scope.splice(after < 0 ? j.scope.length : after + 1, 0, { ...it, row: 900 + Math.round(Math.random() * 99) });
+    }
+    return { ok: !0 };
   }
   var CATS = ["Fuel", "Materials", "Food", "Lodging", "Equipment", "Other"], CARDS = ["Gas card", "General card"], money = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), CAT_COLOR = { Fuel: "#ec5b37", Materials: "#2f7be0", Food: "#eba312", Lodging: "#8b5cf6", Equipment: "#0ea5a5", Other: "#8a938c" }, RCPT = I('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>', 18), recsFor = (id) => (canEdit() ? S.data?.receipts : S.data?.myReceipts || []).filter((r) => r.job === id).sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row), jobTotal = (id) => (S.data?.receipts || []).filter((r) => r.job === id).reduce((t, r) => t + (+r.amount || 0), 0);
   function rcptForm(src) {
@@ -532,6 +589,13 @@
     <div class="cbar">${cats.map((c) => `<i style="flex:${by[c]};background:${CAT_COLOR[c]}"></i>`).join("")}</div>
     <div class="clg">${cats.map((c) => `<span><i style="background:${CAT_COLOR[c]}"></i>${c} <b>${money(by[c])}</b></span>`).join("")}</div>
     ${shown.map((r) => rcptRow(r, !0)).join("")}${list.length > shown.length ? `<button class="lnk more" data-act="rall">Show all ${list.length}</button>` : ""}` : '<div class="empty">No receipts yet.</div>'}</div>`;
+  }
+  function previewRcpt(b) {
+    let key = canEdit() ? "receipts" : "myReceipts", list = S.data[key] = S.data[key] || [], i = list.findIndex((r) => r.row === b.row);
+    if (b.op === "delete")
+      return list.splice(i, 1), { ok: !0 };
+    let it = { ...b.item, amount: +b.item.amount, by: i >= 0 ? list[i].by : S.me };
+    return i >= 0 ? Object.assign(list[i], it) : list.push({ ...it, row: 500 + list.length }), { ok: !0 };
   }
   function siteMap(j) {
     if (!j.geo) return "";
@@ -843,7 +907,7 @@
   });
   function sideBar() {
     let nav = $("#tabs");
-    nav.querySelector(".slg") || (nav.insertAdjacentHTML("afterbegin", `<div class="slg" aria-hidden="true">${LOGO}</div>`), nav.insertAdjacentHTML("beforeend", '<div class="sfoot"></div>')), nav.querySelector(".sfoot").innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${canEdit() ? "Can edit" : "Crew"}</small></span>`, nav.querySelector(".scol") || nav.querySelector(".slg").insertAdjacentHTML("afterend", `<button class="scol" data-act="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar">${I('<path d="M15 6l-6 6 6 6"/>', 18)}</button>`), nav.querySelectorAll("button[data-tab]").forEach((b) => {
+    nav.querySelector(".slg") || (nav.insertAdjacentHTML("afterbegin", `<div class="slg" aria-hidden="true">${LOGO}</div>`), nav.insertAdjacentHTML("beforeend", '<div class="sfoot"></div>')), nav.querySelector(".sfoot").innerHTML = `<span class="av" style="background:${avColor(S.me)}">${esc(S.me[0])}</span><span><b>${esc(first(S.me))}</b><small>${DEMO ? "Demo" : canEdit() ? "Can edit" : "Crew"}</small></span>`, nav.querySelector(".scol") || nav.querySelector(".slg").insertAdjacentHTML("afterend", `<button class="scol" data-act="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar">${I('<path d="M15 6l-6 6 6 6"/>', 18)}</button>`), nav.querySelectorAll("button[data-tab]").forEach((b) => {
       b.title = b.textContent.trim();
     });
   }
@@ -864,11 +928,11 @@
   async function schedPost(body, msg, undo) {
     toast("Saving\u2026");
     try {
-      let b = { u: S.key, ...body }, res = await fetch(DATA_URL, { method: "POST", body: JSON.stringify(b) }).then((r) => r.json());
+      let b = { u: S.key, ...body }, res = DEMO ? previewWrite(b) : await fetch(DATA_URL, { method: "POST", body: JSON.stringify(b) }).then((r) => r.json());
       if (!res.ok) throw new Error(res.error || "Could not save.");
-      await load(), toast(msg, undo ? { label: "Undo", fn: () => schedPost(undo, "Change undone.") } : null);
+      DEMO ? render() : await load(), toast(msg, undo ? { label: "Undo", fn: () => schedPost(undo, "Change undone.") } : null);
     } catch (err) {
-      toast(S.offline || !navigator.onLine ? "No signal. Nothing was saved." : err.message), load();
+      toast(S.offline || !navigator.onLine ? "No signal. Nothing was saved." : err.message), DEMO || load();
     }
   }
   var itemOf = (r, over = {}) => ({ date: r.from || r.date, thru: r.thru || "", job: r.job, start: r.start, crew: [...r.crew], notes: r.notes || "", ...over }), multiDay = (r) => !!(r.thru && r.thru !== (r.from || r.date)), short = (d) => fmtDay(d, { weekday: "short", month: "short", day: "numeric" });
