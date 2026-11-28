@@ -34,7 +34,12 @@ function applyTheme(mode) {
   document.documentElement.style.colorScheme = forced ? mode : ''; document.documentElement.dataset.theme = forced ? mode : 'auto';
 }
 applyTheme(store.get('theme'));
-const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Inside the Crew Hub Android app, which adds "CrewHubApp/<build>" to the browser name. The app keeps the sign-in for its home screen widgets.
+const APP = (/CrewHubApp\/(\d+)/.exec(navigator.userAgent) || [])[1] || '';
+const ANDROID = /Android/.test(navigator.userAgent);
+const APP_HOME = 'https://localhost/';  // the app's own sign-in and widget screens
+const APK_URL = 'https://github.com/rmurphin/crew-hub/raw/main/docs/app/CrewHub.apk';  // opens in Chrome from inside the app
+const installed = () => !!APP || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const mapsUrl = a => { a = String(a || '').replace(/\s*\(.*?\)\s*/g, ' ').trim(); return isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`; };
 const linkify = t => esc(t).replace(/(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})/g, m => `<a href="tel:${m.replace(/\D/g, '')}">${m}</a>`)
@@ -176,6 +181,7 @@ function assignCard(r, label, small) {
 
 /* ---------- screens ---------- */
 function linkScreen() {
+  if (APP && !DEMO && (!S.key || S.bad)) return location.replace(APP_HOME + (S.bad ? '#bad' : '#signin'));
   $('#tabs').hidden = true;
   const [h, p] = S.bad ? ['This link was replaced', 'Paul set up a new link for you. Ask him to text it, then open the new one.']
     : S.key ? ['Signing you in…', S.offline ? 'Can\'t reach the schedule. Check your signal and try again.' : '']
@@ -342,7 +348,13 @@ function settings() {
     <div class="sec">Appearance</div>
     <div class="seg2 seg3" role="group" aria-label="Appearance">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<button data-theme-set="${v}" aria-pressed="${(store.get('theme') || 'auto') === v}">${l}</button>`).join('')}</div>
     <p class="empty" style="margin:6px 0 0;font-size:13px">Auto matches your ${desk() ? 'computer' : 'phone'}'s setting. This only changes ${desk() ? 'this computer' : 'this phone'}.</p>
-    ${installed() ? '' : desk() ? `<div class="sec">Install it on this computer</div>
+    ${APP ? `<div class="sec">Home screen widgets</div>
+    <p class="empty" style="margin:0 0 4px;font-size:14px">Your day and week on the home screen. Add them, pick when they flip to tomorrow, and turn weather on or off.</p>
+    <button class="btn" data-act="widgets">Widgets and app settings</button>${S.appUpd ? '<button class="btn go" data-act="appupd">Update the Crew Hub app</button>' : ''}` : ''}
+    ${!APP && ANDROID && !desk() && !DEMO ? `<div class="sec">Android app</div>
+    <p class="empty" style="margin:0 0 4px;font-size:14px">Same hub, plus home screen widgets with your day and week. Tap below: your link gets copied, then paste it when the app opens.</p>
+    <button class="btn go" data-act="getapp">Get the Android app</button>` : ''}
+    ${installed() || (ANDROID && !desk() && !DEMO) ? '' : desk() ? `<div class="sec">Install it on this computer</div>
     <ol><li>In Chrome, click the install icon at the right end of the address bar (or ⋮ menu, <b>Cast, save, and share</b>, <b>Install page as app</b>).</li><li>Open MPNW Crew Hub from the Start menu, taskbar or desktop.</li></ol>` : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? '<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>' : '<li>In Chrome, tap the ⋮ menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>'}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? ' · schedule ' + new Date(S.data.updated).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}</p></div></div>`);
@@ -1039,8 +1051,17 @@ document.addEventListener('mouseover', e => {
 });
 
 // Taskbar shortcuts open the app with ?go=…
-let GO = new URLSearchParams(location.search).get('go');
+let GO = new URLSearchParams(location.search).get('go'), DAYQ = new URLSearchParams(location.search).get('day');
+// The Android app calls this when a widget day is tapped while the hub is already open.
+window.crewOpenDay = d => { DAYQ = d; goShortcut(); };
 function goShortcut() {
+  if (DAYQ && S.data && S.me && !S.splashHold) {  // a tap on a home screen widget day
+    const d = DAYQ; DAYQ = null; history.replaceState(null, '', location.pathname + (S.key && !DEMO ? '?u=' + encodeURIComponent(S.key) : ''));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    S.job = null;
+    if (d === today() || d === addDays(today(), 1)) S.tab = 'today'; else { S.tab = 'cal'; S.month = d.slice(0, 8) + '01'; S.sel = d; }
+    render('tab'); scrollTo(0, 0); return;
+  }
   if (!GO || !S.data || !S.me || S.splashHold) return; const g = GO; GO = null;
   history.replaceState(null, '', location.pathname);
   if (g === 'receipt') return rcptForm({ job: '' });
@@ -1109,6 +1130,13 @@ document.addEventListener('click', e => {
   else if (act === 'search') searchOpen();
   else if (act === 'close') closeSheet();
   else if (act === 'refresh') { closeSheet(); load(true); }
+  else if (act === 'widgets') location.href = APP_HOME + '#widgets';
+  else if (act === 'appupd') location.href = APK_URL;
+  else if (act === 'getapp') {
+    const link = location.origin + location.pathname + '?u=' + encodeURIComponent(S.key);
+    const go = () => { toast('Your link is copied. Open the download, install, then paste it in the app.'); setTimeout(() => { location.href = 'app/CrewHub.apk'; }, 600); };
+    (navigator.clipboard?.writeText(link) || Promise.reject()).then(go, () => { toast('Copy your link from the text Paul sent, then install.'); setTimeout(() => { location.href = 'app/CrewHub.apk'; }, 1200); });
+  }
 });
 let toastT = 0;
 function toast(msg, action) { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
@@ -1180,4 +1208,8 @@ if (splash) {
   setTimeout(finish, 4200);  // never hold the app longer than this
 }
 if (!splash || !waitLoad) { load(); loadWeather(); }
+// The Android app checks once per open whether a newer build is posted on the hub site.
+if (APP && !PREVIEW) fetch('app/version.json', { cache: 'no-store' }).then(r => r.json()).then(v => {
+  if (+v.build > +APP) { S.appUpd = v; setTimeout(() => toast('A new version of the Crew Hub app is ready.', { label: 'Update', fn: () => { location.href = APK_URL; } }), 5000); }
+}).catch(() => {});
 if (!PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
