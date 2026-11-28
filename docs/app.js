@@ -51,7 +51,7 @@
     document.documentElement.style.colorScheme = forced ? mode : "", document.documentElement.dataset.theme = forced ? mode : "auto";
   }
   applyTheme(store.get("theme"));
-  var installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === !0, isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, mapsUrl = (a) => (a = String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`), linkify = (t) => esc(t).replace(/(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})/g, (m) => `<a href="tel:${m.replace(/\D/g, "")}">${m}</a>`).replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g, (m) => `<a href="mailto:${m}">${m}</a>`).replace(/\n/g, "<br>"), I = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`, NAV = I('<path d="M3 11l18-8-8 18-2-8-8-2z"/>'), PIN = I('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', 18), INFO = I('<path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6M9 18h4"/>'), GEAR = I('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), WARN = I('<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/>', 18), L = I('<path d="M15 5l-7 7 7 7"/>'), R = I('<path d="M9 5l7 7-7 7"/>'), SEARCH = I('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>'), LINK = I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 18);
+  var APP = (/CrewHubApp\/(\d+)/.exec(navigator.userAgent) || [])[1] || "", ANDROID = /Android/.test(navigator.userAgent), APP_HOME = "https://localhost/", APK_URL = "https://github.com/rmurphin/crew-hub/raw/main/docs/app/CrewHub.apk", installed = () => !!APP || matchMedia("(display-mode: standalone)").matches || navigator.standalone === !0, isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1, mapsUrl = (a) => (a = String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim(), isIOS ? `https://maps.apple.com/?daddr=${encodeURIComponent(a)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(a)}`), linkify = (t) => esc(t).replace(/(\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4})/g, (m) => `<a href="tel:${m.replace(/\D/g, "")}">${m}</a>`).replace(/([\w.+-]+@[\w-]+\.[\w.]+)/g, (m) => `<a href="mailto:${m}">${m}</a>`).replace(/\n/g, "<br>"), I = (d, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`, NAV = I('<path d="M3 11l18-8-8 18-2-8-8-2z"/>'), PIN = I('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', 18), INFO = I('<path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6M9 18h4"/>'), GEAR = I('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'), WARN = I('<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/>', 18), L = I('<path d="M15 5l-7 7 7 7"/>'), R = I('<path d="M9 5l7 7-7 7"/>'), SEARCH = I('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>'), LINK = I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', 18);
   document.body.insertAdjacentHTML("afterbegin", `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><g id="topo-map">${topo_default}</g></defs></svg>`);
   var MARKS = [
     { n: "MT ST HELENS", f: "8,363 FT", x: 0, y: 0, main: !0 },
@@ -155,6 +155,7 @@
   </div>`;
   }
   function linkScreen() {
+    if (APP && !DEMO && (!S.key || S.bad)) return location.replace(APP_HOME + (S.bad ? "#bad" : "#signin"));
     $("#tabs").hidden = !0;
     let [h, p] = S.bad ? ["This link was replaced", "Paul set up a new link for you. Ask him to text it, then open the new one."] : S.key ? ["Signing you in\u2026", S.offline ? "Can't reach the schedule. Check your signal and try again." : ""] : ["Open your personal link", "Paul texts each person their own link. Open it on your phone and you're signed in for good."];
     $("#app").innerHTML = `<div class="who">${TOPO("link")}<div class="w">${LOGO}<h1>${h}</h1><p>${p}</p>
@@ -299,7 +300,13 @@
     <div class="sec">Appearance</div>
     <div class="seg2 seg3" role="group" aria-label="Appearance">${[["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button data-theme-set="${v}" aria-pressed="${(store.get("theme") || "auto") === v}">${l}</button>`).join("")}</div>
     <p class="empty" style="margin:6px 0 0;font-size:13px">Auto matches your ${desk() ? "computer" : "phone"}'s setting. This only changes ${desk() ? "this computer" : "this phone"}.</p>
-    ${installed() ? "" : desk() ? `<div class="sec">Install it on this computer</div>
+    ${APP ? `<div class="sec">Home screen widgets</div>
+    <p class="empty" style="margin:0 0 4px;font-size:14px">Your day and week on the home screen. Add them, pick when they flip to tomorrow, and turn weather on or off.</p>
+    <button class="btn" data-act="widgets">Widgets and app settings</button>${S.appUpd ? '<button class="btn go" data-act="appupd">Update the Crew Hub app</button>' : ""}` : ""}
+    ${!APP && ANDROID && !desk() && !DEMO ? `<div class="sec">Android app</div>
+    <p class="empty" style="margin:0 0 4px;font-size:14px">Same hub, plus home screen widgets with your day and week. Tap below: your link gets copied, then paste it when the app opens.</p>
+    <button class="btn go" data-act="getapp">Get the Android app</button>` : ""}
+    ${installed() || ANDROID && !desk() && !DEMO ? "" : desk() ? `<div class="sec">Install it on this computer</div>
     <ol><li>In Chrome, click the install icon at the right end of the address bar (or \u22EE menu, <b>Cast, save, and share</b>, <b>Install page as app</b>).</li><li>Open MPNW Crew Hub from the Start menu, taskbar or desktop.</li></ol>` : `<div class="sec">Put this on your home screen</div>
     <ol>${isIOS ? "<li>In Safari, tap the Share button.</li><li>Tap <b>Add to Home Screen</b>, then Add.</li>" : "<li>In Chrome, tap the \u22EE menu.</li><li>Tap <b>Add to Home screen</b> (or Install app).</li>"}<li>Open MPNW Crew from the new icon.</li></ol>`}
     <p class="empty" style="font-size:13px;margin-top:16px">MPNW Crew Hub ${VERSION}${S.data?.updated ? " \xB7 schedule " + new Date(S.data.updated).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""}</p></div></div>`);
@@ -1108,8 +1115,17 @@
       h.style.left = Math.max(8, x) + "px", h.style.top = Math.max(8, Math.min(rc.top, innerHeight - ht - 8)) + "px";
     }, 280));
   });
-  var GO = new URLSearchParams(location.search).get("go");
+  var GO = new URLSearchParams(location.search).get("go"), DAYQ = new URLSearchParams(location.search).get("day");
+  window.crewOpenDay = (d) => {
+    DAYQ = d, goShortcut();
+  };
   function goShortcut() {
+    if (DAYQ && S.data && S.me && !S.splashHold) {
+      let d = DAYQ;
+      if (DAYQ = null, history.replaceState(null, "", location.pathname + (S.key && !DEMO ? "?u=" + encodeURIComponent(S.key) : "")), !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+      S.job = null, d === today() || d === addDays(today(), 1) ? S.tab = "today" : (S.tab = "cal", S.month = d.slice(0, 8) + "01", S.sel = d), render("tab"), scrollTo(0, 0);
+      return;
+    }
     if (!GO || !S.data || !S.me || S.splashHold) return;
     let g = GO;
     if (GO = null, history.replaceState(null, "", location.pathname), g === "receipt") return rcptForm({ job: "" });
@@ -1218,7 +1234,32 @@
     } else if (act === "toastfn") {
       let f = toast.fn;
       toast.fn = null, $("#toast")?.classList.remove("show"), f?.();
-    } else act === "rall" ? (S.allRcpt = S.job, render()) : act === "fsave" ? formSave(!1) : act === "fdel" ? S.form.del ? formSave(!0) : (S.form.del = !0, drawForm()) : act === "eddel" ? S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor()) : act === "settings" ? settings() : act === "search" ? searchOpen() : act === "close" ? closeSheet() : act === "refresh" && (closeSheet(), load(!0));
+    } else if (act === "rall")
+      S.allRcpt = S.job, render();
+    else if (act === "fsave") formSave(!1);
+    else if (act === "fdel")
+      S.form.del ? formSave(!0) : (S.form.del = !0, drawForm());
+    else if (act === "eddel")
+      S.ed.del ? edSave(!0) : (S.ed.del = !0, drawEditor());
+    else if (act === "settings") settings();
+    else if (act === "search") searchOpen();
+    else if (act === "close") closeSheet();
+    else if (act === "refresh")
+      closeSheet(), load(!0);
+    else if (act === "widgets") location.href = APP_HOME + "#widgets";
+    else if (act === "appupd") location.href = APK_URL;
+    else if (act === "getapp") {
+      let link = location.origin + location.pathname + "?u=" + encodeURIComponent(S.key), go = () => {
+        toast("Your link is copied. Open the download, install, then paste it in the app."), setTimeout(() => {
+          location.href = "app/CrewHub.apk";
+        }, 600);
+      };
+      (navigator.clipboard?.writeText(link) || Promise.reject()).then(go, () => {
+        toast("Copy your link from the text Paul sent, then install."), setTimeout(() => {
+          location.href = "app/CrewHub.apk";
+        }, 1200);
+      });
+    }
   });
   var toastT = 0;
   function toast(msg, action) {
@@ -1321,6 +1362,12 @@
   }
   var waitLoad;
   (!splash || !waitLoad) && (load(), loadWeather());
+  APP && !PREVIEW && fetch("app/version.json", { cache: "no-store" }).then((r) => r.json()).then((v) => {
+    +v.build > +APP && (S.appUpd = v, setTimeout(() => toast("A new version of the Crew Hub app is ready.", { label: "Update", fn: () => {
+      location.href = APK_URL;
+    } }), 5e3));
+  }).catch(() => {
+  });
   !PREVIEW && "serviceWorker" in navigator && navigator.serviceWorker.register("sw.js").catch(() => {
   });
 })();
